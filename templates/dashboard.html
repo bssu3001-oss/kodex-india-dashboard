@@ -290,9 +290,9 @@ function buildChart(period, type) {
     layout: { background: { color: '#0d1117' }, textColor: '#c9d1d9', fontSize: 12 },
     grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
     crosshair: {
-      mode: LightweightCharts.CrosshairMode.Normal,
-      vertLine: { color: '#58a6ff', width: 1, style: 0, labelBackgroundColor: '#1f6feb' },
-      horzLine: { color: '#58a6ff', width: 1, style: 0, labelBackgroundColor: '#1f6feb' },
+      mode: LightweightCharts.CrosshairMode.Magnet,
+      vertLine: { color: '#58a6ff', width: 1, style: 2, labelBackgroundColor: '#1f6feb' },
+      horzLine: { color: '#58a6ff', width: 1, style: 2, labelBackgroundColor: '#1f6feb' },
     },
     rightPriceScale: {
       borderColor: '#30363d',
@@ -367,27 +367,38 @@ function buildChart(period, type) {
   // 데이터 전체가 화면에 맞게
   chart.timeScale().fitContent();
 
-  // OHLCV 툴팁
+  // 전일 종가 빠른 조회용 맵
+  var prevCloseMap = {};
+  filtered.forEach(function(c, i) {
+    prevCloseMap[c.date] = i > 0 ? filtered[i - 1].close : c.open;
+  });
+
+  // OHLCV 툴팁 — Magnet 모드: 항상 가장 가까운 캔들에 스냅
   var tooltip = document.getElementById('chart-tooltip');
   chart.subscribeCrosshairMove(function(param) {
     if (!tooltip) return;
-    if (!param || !param.time || !param.seriesData || !param.seriesData.size) {
-      tooltip.innerHTML = ''; return;
-    }
+    if (!param || !param.time) { tooltip.innerHTML = ''; return; }
     var cd = param.seriesData.get(candleSeries);
     if (!cd) { tooltip.innerHTML = ''; return; }
-    var chg = cd.close - cd.open;
-    var chgPct = (chg / cd.open * 100).toFixed(2);
-    var col = chg >= 0 ? 'var(--up)' : 'var(--down)';
+
+    // 전일 종가 대비 등락
+    var prevClose = prevCloseMap[param.time];
+    var chg = cd.close - prevClose;
+    var chgPct = (chg / prevClose * 100).toFixed(2);
+    var upCol = '#ef5350'; var dnCol = '#1976d2';
+    var col = chg >= 0 ? upCol : dnCol;
+
     var vd = param.seriesData.get(volSeries);
+    var volText = vd ? ' &nbsp;<span style="color:#8b949e">거래량 ' + fmt(vd.value) + '</span>' : '';
+
     tooltip.innerHTML =
-      '<span style="color:var(--muted);margin-right:8px">' + param.time + '</span>' +
-      'O:<b style="color:' + col + '">' + fmt(cd.open) + '</b> ' +
-      'H:<b style="color:var(--up)">' + fmt(cd.high) + '</b> ' +
-      'L:<b style="color:var(--down)">' + fmt(cd.low) + '</b> ' +
-      'C:<b style="color:' + col + '">' + fmt(cd.close) + '</b> ' +
-      '<b style="color:' + col + '">(' + (chg >= 0 ? '+' : '') + fmt(chg) + ' ' + (chg >= 0 ? '+' : '') + chgPct + '%)</b>' +
-      (vd ? ' <span style="color:var(--muted)">  거래량 ' + fmt(vd.value) + '</span>' : '');
+      '<span style="color:#8b949e;margin-right:6px">' + param.time + '</span>' +
+      '<span style="color:#8b949e">시가</span> <b style="color:' + col + '">' + fmt(cd.open) + '</b>&nbsp;' +
+      '<span style="color:#8b949e">고가</span> <b style="color:' + upCol + '">' + fmt(cd.high) + '</b>&nbsp;' +
+      '<span style="color:#8b949e">저가</span> <b style="color:' + dnCol + '">' + fmt(cd.low) + '</b>&nbsp;' +
+      '<span style="color:#8b949e">종가</span> <b style="color:' + col + '">' + fmt(cd.close) + '</b>&nbsp;' +
+      '<b style="color:' + col + '">' + (chg >= 0 ? '+' : '') + fmt(chg) + ' (' + (chg >= 0 ? '+' : '') + chgPct + '%)</b>' +
+      volText;
   });
 
   // 리사이즈
