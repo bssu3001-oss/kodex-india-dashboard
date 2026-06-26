@@ -48,8 +48,26 @@
   .data-table td:first-child { text-align: left; color: var(--muted); }
   .up { color: var(--up); }
   .down { color: var(--down); }
-  .ma-legend { display: flex; gap: 16px; margin-bottom: 8px; font-size: 12px; }
-  .ma-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+  .overlay-toggles { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:8px; }
+  .tgl { display:flex; align-items:center; gap:4px; background:var(--bg); border:1px solid var(--border); color:var(--muted); padding:3px 10px; border-radius:16px; cursor:pointer; font-size:11px; transition:all 0.15s; white-space:nowrap; }
+  .tgl.on { font-weight:600; }
+  .tgl.on[data-k="ma5"]   { color:#f7c948; border-color:#f7c948; }
+  .tgl.on[data-k="ma20"]  { color:#e884f7; border-color:#e884f7; }
+  .tgl.on[data-k="ma60"]  { color:#4cafe9; border-color:#4cafe9; }
+  .tgl.on[data-k="ma120"] { color:#f77c48; border-color:#f77c48; }
+  .tgl.on[data-k="sr"]    { color:#26a69a; border-color:#26a69a; }
+  .tgl.on[data-k="vol"]   { color:#8b949e; border-color:#8b949e; }
+  .tgl-dot { width:7px; height:7px; border-radius:50%; background:currentColor; flex-shrink:0; }
+  #chart-popup { position:absolute; z-index:20; background:rgba(18,22,28,0.97); border:1px solid #30363d; border-radius:8px; padding:10px 13px; font-size:12px; min-width:210px; pointer-events:none; box-shadow:0 4px 16px rgba(0,0,0,0.5); display:none; }
+  #chart-popup .pp-date { font-weight:700; color:#e6edf3; font-size:13px; margin-bottom:7px; }
+  #chart-popup table { width:100%; border-collapse:collapse; }
+  #chart-popup td { padding:2px 0; }
+  #chart-popup td:first-child { color:#8b949e; width:32px; }
+  #chart-popup td:nth-child(2) { text-align:right; font-weight:600; padding-right:6px; }
+  #chart-popup td:nth-child(3) { text-align:right; font-size:11px; width:52px; }
+  #chart-popup .pp-sep { border-top:1px solid #30363d; margin:6px 0; }
+  #chart-popup .pp-ma-hd { color:#8b949e; font-size:11px; margin-bottom:4px; }
+  #chart-wrap { position:relative; }
   .insight-text { line-height: 1.8; color: var(--text); font-size: 14px; }
   .scenario-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-top: 12px; }
   .calc-input { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 6px; font-size: 15px; width: 160px; }
@@ -93,11 +111,13 @@
 
   <div class="panel">
     <div class="panel-title">가격 차트</div>
-    <div class="ma-legend" id="ma-legend">
-      <span><span class="ma-dot" style="background:#f7c948"></span>MA5</span>
-      <span><span class="ma-dot" style="background:#e884f7"></span>MA20</span>
-      <span><span class="ma-dot" style="background:#4cafe9"></span>MA60</span>
-      <span><span class="ma-dot" style="background:#f77c48"></span>MA120</span>
+    <div class="overlay-toggles" id="overlay-toggles">
+      <button class="tgl on" data-k="ma5"  onclick="toggleOverlay('ma5')"><span class="tgl-dot"></span>MA5</button>
+      <button class="tgl on" data-k="ma20" onclick="toggleOverlay('ma20')"><span class="tgl-dot"></span>MA20</button>
+      <button class="tgl on" data-k="ma60" onclick="toggleOverlay('ma60')"><span class="tgl-dot"></span>MA60</button>
+      <button class="tgl on" data-k="ma120" onclick="toggleOverlay('ma120')"><span class="tgl-dot"></span>MA120</button>
+      <button class="tgl on" data-k="sr"  onclick="toggleOverlay('sr')">지지·저항</button>
+      <button class="tgl on" data-k="vol" onclick="toggleOverlay('vol')">거래량</button>
     </div>
     <div class="chart-controls">
       <button class="btn" onclick="setChartPeriod('3M',this)">3개월</button>
@@ -108,8 +128,16 @@
       <button class="btn active" onclick="setChartType('daily',this)">일봉</button>
       <button class="btn" onclick="setChartType('weekly',this)">주봉</button>
     </div>
-    <div id="chart-tooltip" style="height:22px;font-size:12px;padding:2px 0;margin-bottom:4px;white-space:nowrap;overflow:hidden"></div>
-    <div id="chart-container" style="height:520px"></div>
+    <div id="chart-wrap">
+      <div id="chart-container" style="height:480px"></div>
+      <div id="chart-popup">
+        <div class="pp-date" id="pp-date"></div>
+        <table id="pp-ohlcv"></table>
+        <div class="pp-sep"></div>
+        <div class="pp-ma-hd">주가이동평균</div>
+        <table id="pp-ma"></table>
+      </div>
+    </div>
     <div id="volume-container" style="display:none"></div>
   </div>
 
@@ -273,11 +301,44 @@ function getFilteredCandles(period, type) {
   return src.filter(function(c) { return c.date >= cutStr; });
 }
 
+// 오버레이 토글 상태 (차트 재빌드해도 유지)
+if (!window._tog) window._tog = {ma5:true, ma20:true, ma60:true, ma120:true, sr:true, vol:true};
+
+function toggleOverlay(key) {
+  window._tog[key] = !window._tog[key];
+  var btn = document.querySelector('.tgl[data-k="' + key + '"]');
+  if (btn) btn.classList.toggle('on', window._tog[key]);
+  var refs = window._chartRefs || {};
+  if (key === 'vol') {
+    if (refs.vol) refs.vol.applyOptions({visible: window._tog.vol});
+  } else if (key === 'sr') {
+    (refs.srLines || []).forEach(function(pl) {
+      try { refs.candle.removePriceLine(pl); } catch(e) {}
+    });
+    refs.srLines = [];
+    if (window._tog.sr) _addSRLines(refs.candle, refs.srLines);
+  } else {
+    var p = key.replace('ma','');
+    if (refs['ma'+p]) refs['ma'+p].applyOptions({visible: window._tog[key]});
+  }
+}
+
+function _addSRLines(candle, arr) {
+  var sr = D.indicators.sr || {};
+  (sr.supports || []).forEach(function(level, i) {
+    arr.push(candle.createPriceLine({price:level, color:'rgba(38,166,154,0.85)', lineWidth:1, lineStyle:2, axisLabelVisible:true, title: i===0?'지지':''}));
+  });
+  (sr.resistances || []).forEach(function(level, i) {
+    arr.push(candle.createPriceLine({price:level, color:'rgba(239,83,80,0.85)', lineWidth:1, lineStyle:2, axisLabelVisible:true, title: i===0?'저항':''}));
+  });
+}
+
 function buildChart(period, type) {
   var container = document.getElementById('chart-container');
   container.innerHTML = '';
+  var popup = document.getElementById('chart-popup');
+  if (popup) popup.style.display = 'none';
 
-  // Cleanup previous chart instance and resize handler
   if (window._chartInst) { try { window._chartInst.remove(); } catch(e) {} window._chartInst = null; }
   if (window._chartResize) { window.removeEventListener('resize', window._chartResize); window._chartResize = null; }
 
@@ -294,11 +355,8 @@ function buildChart(period, type) {
       vertLine: { color: '#58a6ff', width: 1, style: 2, labelBackgroundColor: '#1f6feb' },
       horzLine: { color: '#58a6ff', width: 1, style: 2, labelBackgroundColor: '#1f6feb' },
     },
-    rightPriceScale: {
-      borderColor: '#30363d',
-      scaleMargins: { top: 0.05, bottom: 0.22 },
-    },
-    timeScale: { borderColor: '#30363d', timeVisible: true, fixLeftEdge: true },
+    rightPriceScale: { borderColor: '#30363d', scaleMargins: { top: 0.05, bottom: 0.22 } },
+    timeScale: { borderColor: '#30363d', timeVisible: true, fixRightEdge: true },
   });
   window._chartInst = chart;
 
@@ -307,11 +365,8 @@ function buildChart(period, type) {
     upColor: '#ef5350', downColor: '#1976d2',
     borderUpColor: '#ef5350', borderDownColor: '#1976d2',
     wickUpColor: '#ef5350', wickDownColor: '#1976d2',
-    lastValueVisible: true,
-    priceLineVisible: true,
-    priceLineColor: '#58a6ff',
-    priceLineWidth: 1,
-    priceLineStyle: 2,
+    lastValueVisible: true, priceLineVisible: true,
+    priceLineColor: '#58a6ff', priceLineWidth: 1, priceLineStyle: 2,
   });
   candleSeries.setData(filtered.map(function(c) {
     return {time: c.date, open: c.open, high: c.high, low: c.low, close: c.close};
@@ -321,84 +376,108 @@ function buildChart(period, type) {
   var dateSet = {};
   filtered.forEach(function(c) { dateSet[c.date] = true; });
   var sma = D.indicators.sma || {};
+  var maRefs = {};
   ['5','20','60','120'].forEach(function(p) {
     if (!sma[p] || !sma[p].length) return;
-    var maSeries = chart.addLineSeries({
+    var s = chart.addLineSeries({
       color: MA_COLORS[p], lineWidth: 1,
       priceLineVisible: false, lastValueVisible: true,
-      crosshairMarkerVisible: false,
-      title: 'MA' + p,
+      crosshairMarkerVisible: false, title: 'MA'+p,
+      visible: window._tog['ma'+p],
     });
-    var data = sma[p].filter(function(s) { return dateSet[s.date]; }).map(function(s) {
-      return {time: s.date, value: s.value};
-    });
-    if (data.length) maSeries.setData(data);
+    var data = sma[p].filter(function(d) { return dateSet[d.date]; }).map(function(d) { return {time:d.date, value:d.value}; });
+    if (data.length) s.setData(data);
+    maRefs[p] = s;
   });
 
-  // 지지/저항선 — createPriceLine (축 레이블 포함)
-  var sr = D.indicators.sr || {};
-  (sr.supports || []).forEach(function(level, i) {
-    candleSeries.createPriceLine({
-      price: level, color: 'rgba(38,166,154,0.85)', lineWidth: 1, lineStyle: 2,
-      axisLabelVisible: true, title: i === 0 ? '지지' : '',
-    });
-  });
-  (sr.resistances || []).forEach(function(level, i) {
-    candleSeries.createPriceLine({
-      price: level, color: 'rgba(239,83,80,0.85)', lineWidth: 1, lineStyle: 2,
-      axisLabelVisible: true, title: i === 0 ? '저항' : '',
-    });
-  });
+  // 지지/저항선
+  var srLines = [];
+  if (window._tog.sr) _addSRLines(candleSeries, srLines);
 
-  // 거래량 히스토그램 — 독립 priceScaleId로 캔들 아래 하단 20%에만 표시
+  // 거래량
   var volSeries = chart.addHistogramSeries({
-    priceFormat: { type: 'volume' },
-    priceScaleId: 'vol',
-    lastValueVisible: false,
+    priceFormat: { type: 'volume' }, priceScaleId: 'vol',
+    lastValueVisible: false, visible: window._tog.vol,
   });
-  chart.priceScale('vol').applyOptions({
-    scaleMargins: { top: 0.8, bottom: 0 },
-    visible: false,
-  });
+  chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 }, visible: false });
   volSeries.setData(filtered.map(function(c) {
     return {time: c.date, value: c.volume, color: c.close >= c.open ? 'rgba(239,83,80,0.45)' : 'rgba(25,118,210,0.45)'};
   }));
 
-  // 데이터 전체가 화면에 맞게
+  // 시리즈 참조 저장 (토글용)
+  window._chartRefs = { candle: candleSeries, vol: volSeries, srLines: srLines,
+    ma5: maRefs['5'], ma20: maRefs['20'], ma60: maRefs['60'], ma120: maRefs['120'] };
+
+  // 오른쪽(최신) 고정, 전체 데이터 표시
   chart.timeScale().fitContent();
 
-  // 전일 종가 빠른 조회용 맵
-  var prevCloseMap = {};
+  // 팝업용 날짜-데이터 맵 (전일 종가·거래량 포함)
+  var dmap = {};
   filtered.forEach(function(c, i) {
-    prevCloseMap[c.date] = i > 0 ? filtered[i - 1].close : c.open;
+    dmap[c.date] = {
+      o: c.open, h: c.high, l: c.low, c: c.close, v: c.volume,
+      pc: i > 0 ? filtered[i-1].close : c.open,
+      pv: i > 0 ? filtered[i-1].volume : c.volume,
+      ma: {}
+    };
+  });
+  ['5','20','60','120'].forEach(function(p) {
+    (sma[p] || []).forEach(function(s) { if (dmap[s.date]) dmap[s.date].ma[p] = s.value; });
   });
 
-  // OHLCV 툴팁 — Magnet 모드: 항상 가장 가까운 캔들에 스냅
-  var tooltip = document.getElementById('chart-tooltip');
+  // KakaoStock 스타일 플로팅 팝업
+  var DAYS = ['일','월','화','수','목','금','토'];
   chart.subscribeCrosshairMove(function(param) {
-    if (!tooltip) return;
-    if (!param || !param.time) { tooltip.innerHTML = ''; return; }
+    if (!popup) return;
+    if (!param || !param.time || !param.point) { popup.style.display = 'none'; return; }
     var cd = param.seriesData.get(candleSeries);
-    if (!cd) { tooltip.innerHTML = ''; return; }
+    if (!cd) { popup.style.display = 'none'; return; }
 
-    // 전일 종가 대비 등락
-    var prevClose = prevCloseMap[param.time];
-    var chg = cd.close - prevClose;
-    var chgPct = (chg / prevClose * 100).toFixed(2);
-    var upCol = '#ef5350'; var dnCol = '#1976d2';
-    var col = chg >= 0 ? upCol : dnCol;
+    var d = dmap[param.time] || {};
+    var pc = d.pc || cd.open;
+    var pv = d.pv || 1;
+    var upC = '#ef5350', dnC = '#1976d2';
+    function chgCol(v, ref) { return v >= ref ? upC : dnC; }
+    function chgStr(v, ref) { var p = ((v-ref)/ref*100); return (p>=0?'+':'')+p.toFixed(2)+'%'; }
 
-    var vd = param.seriesData.get(volSeries);
-    var volText = vd ? ' &nbsp;<span style="color:#8b949e">거래량 ' + fmt(vd.value) + '</span>' : '';
+    // 날짜 (요일 포함)
+    var dt = new Date(param.time);
+    document.getElementById('pp-date').textContent = param.time.replace(/-/g,'.') + '(' + DAYS[dt.getDay()] + ')';
 
-    tooltip.innerHTML =
-      '<span style="color:#8b949e;margin-right:6px">' + param.time + '</span>' +
-      '<span style="color:#8b949e">시가</span> <b style="color:' + col + '">' + fmt(cd.open) + '</b>&nbsp;' +
-      '<span style="color:#8b949e">고가</span> <b style="color:' + upCol + '">' + fmt(cd.high) + '</b>&nbsp;' +
-      '<span style="color:#8b949e">저가</span> <b style="color:' + dnCol + '">' + fmt(cd.low) + '</b>&nbsp;' +
-      '<span style="color:#8b949e">종가</span> <b style="color:' + col + '">' + fmt(cd.close) + '</b>&nbsp;' +
-      '<b style="color:' + col + '">' + (chg >= 0 ? '+' : '') + fmt(chg) + ' (' + (chg >= 0 ? '+' : '') + chgPct + '%)</b>' +
-      volText;
+    // OHLCV 행
+    var rows = [
+      ['종', cd.close, pc],
+      ['시', cd.open,  pc],
+      ['고', cd.high,  pc],
+      ['저', cd.low,   pc],
+      ['거래량', d.v, pv],
+    ];
+    document.getElementById('pp-ohlcv').innerHTML = rows.map(function(r) {
+      var col = chgCol(r[1], r[2]);
+      var val = r[0] === '거래량' ? fmt(r[1]) : fmt(r[1]);
+      return '<tr><td>' + r[0] + '</td>' +
+        '<td style="color:' + col + '">' + val + '</td>' +
+        '<td style="color:' + col + '">' + chgStr(r[1], r[2]) + '</td></tr>';
+    }).join('');
+
+    // MA 행
+    var maRows = [['5','이평 5'],['20','이평 20'],['60','이평 60'],['120','이평 120']];
+    document.getElementById('pp-ma').innerHTML = maRows.map(function(r) {
+      var v = d.ma && d.ma[r[0]];
+      if (!v) return '';
+      var col = chgCol(v, pc);
+      return '<tr><td style="color:#8b949e;width:52px">' + r[1] + '</td>' +
+        '<td style="text-align:right;padding-right:6px;font-weight:600;color:' + col + '">' + fmt(v) + '</td>' +
+        '<td style="text-align:right;font-size:11px;color:' + col + '">' + chgStr(v, pc) + '</td></tr>';
+    }).join('');
+
+    // 팝업 위치 (오른쪽에 공간 있으면 오른쪽, 없으면 왼쪽)
+    var popW = 224;
+    var x = param.point.x;
+    var cw = container.clientWidth;
+    popup.style.left = (x + 20 + popW < cw ? x + 20 : x - popW - 10) + 'px';
+    popup.style.top = '16px';
+    popup.style.display = 'block';
   });
 
   // 리사이즈
