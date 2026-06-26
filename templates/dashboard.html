@@ -516,11 +516,36 @@ function renderTrend() {
     ['MA60', fmt(a.ma60), a.gap_pct && a.gap_pct.ma60 != null ? pct(a.gap_pct.ma60) : '–'],
     ['MA120', fmt(a.ma120), a.gap_pct && a.gap_pct.ma120 != null ? pct(a.gap_pct.ma120) : '–'],
   ];
+
+  // 현재가·이평선을 값이 높은 순서대로 정렬한 띠 (정배열/역배열 한눈에)
+  var cur = (D.indicators.position && D.indicators.position.current) || (D.quote && D.quote.price);
+  var order = [
+    {k:'현재가', v: cur, c:'#58a6ff', strong:true},
+    {k:'MA5',   v: a.ma5,   c: MA_COLORS['5']},
+    {k:'MA20',  v: a.ma20,  c: MA_COLORS['20']},
+    {k:'MA60',  v: a.ma60,  c: MA_COLORS['60']},
+    {k:'MA120', v: a.ma120, c: MA_COLORS['120']},
+  ].filter(function(it){ return it.v != null; }).sort(function(x,y){ return y.v - x.v; });
+
+  var orderStrip =
+    '<div style="font-size:11px;color:var(--muted);margin-bottom:6px">값이 높은 순 (왼쪽) → 낮은 순 (오른쪽)</div>' +
+    '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:16px">' +
+    order.map(function(it, i){
+      var pill = '<span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:14px;' +
+        'background:rgba(255,255,255,0.04);border:1px solid ' + it.c + ';' + (it.strong?'font-weight:700;':'') + '">' +
+        '<span style="width:7px;height:7px;border-radius:50%;background:' + it.c + ';flex-shrink:0"></span>' +
+        '<span style="color:' + it.c + '">' + it.k + '</span>' +
+        '<span style="color:var(--text);font-size:12px">' + fmt(it.v) + '</span></span>';
+      var sep = i < order.length-1 ? '<span style="color:var(--muted);font-weight:700">›</span>' : '';
+      return pill + sep;
+    }).join('') + '</div>';
+
   document.getElementById('trend-content').innerHTML =
     '<div style="margin-bottom:12px"><span style="font-size:20px;font-weight:700;color:' + statusColor + '">' + (a.status || '–') + '</span>' +
     (cr.golden ? '<span style="margin-left:16px;font-size:12px;color:var(--green)">골든크로스 ' + cr.golden + '</span>' : '') +
     (cr.dead ? '<span style="margin-left:16px;font-size:12px;color:var(--red)">데드크로스 ' + cr.dead + '</span>' : '') +
     '</div>' +
+    orderStrip +
     '<table class="data-table"><thead><tr><th>이평선</th><th>현재값</th><th>현재가 대비</th></tr></thead><tbody>' +
     rows.map(function(r) {
       var cls = r[2].startsWith ? (r[2].startsWith('+') ? 'up' : (r[2].startsWith('-') ? 'down' : '')) : '';
