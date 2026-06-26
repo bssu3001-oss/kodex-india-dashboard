@@ -315,16 +315,41 @@ function _rebuild() {
     .then(function(j) { if (!j || !j.ok) throw new Error(j && j.error || '갱신 실패'); return j; });
 }
 
+// 실행 환경 구분: server(로컬 서버, 재빌드 가능) / static(GitHub Pages 등) / file(파일 직접 열기)
+function _envMode() {
+  var h = location.hostname;
+  if (h === 'localhost' || h === '127.0.0.1') return 'server';
+  if (location.protocol === 'file:') return 'file';
+  return 'static';
+}
+function _reloadFresh() {
+  // 캐시 무시하고 최신 배포본(자동 갱신된 데이터)을 다시 불러옴
+  var base = location.href.split('?')[0].split('#')[0];
+  location.href = base + '?t=' + Date.now();
+}
+
 function manualRefresh() {
   var btn = document.getElementById('refresh-btn');
   if (btn.disabled) return;
+  var mode = _envMode();
+  if (mode === 'static') {
+    // 폰·GitHub Pages: 서버가 없으니 GitHub이 마지막으로 갱신한 데이터를 새로 불러옴
+    btn.disabled = true; btn.textContent = '⏳ 불러오는 중...';
+    _reloadFresh();
+    return;
+  }
+  if (mode === 'file') {
+    alert('지금은 파일을 직접 연 상태라 갱신이 안 됩니다.\n\n• 컴퓨터: "대시보드_서버.command"로 열면 실시간 갱신\n• 폰: GitHub Pages 주소로 보면 자동 갱신된 데이터를 봅니다.');
+    return;
+  }
+  // 로컬 서버: 진짜 재빌드(실시간 데이터 새로 받기)
   var orig = btn.textContent;
   btn.disabled = true; btn.textContent = '⏳ 갱신 중...';
   _rebuild()
     .then(function() { location.reload(); })
     .catch(function() {
       btn.disabled = false; btn.textContent = orig;
-      alert('데이터 갱신은 서버로 실행했을 때만 됩니다.\n\n"대시보드_서버.command" 를 더블클릭해 서버를 켠 뒤, 열린 localhost 주소에서 사용하세요.\n(지금은 갱신 서버에 연결할 수 없습니다.)');
+      alert('갱신 서버에 연결할 수 없습니다.\n"대시보드_서버.command" 로 서버를 켠 뒤 사용하세요.');
     });
 }
 
@@ -344,7 +369,12 @@ function isMarketHours() {
 function autoTick() {
   if (!localStorage.getItem('autoRefresh')) return;
   if (!isMarketHours()) return; // 장중에만
-  _rebuild().then(function() { location.reload(); }).catch(function() {});
+  var mode = _envMode();
+  if (mode === 'server') {
+    _rebuild().then(function() { location.reload(); }).catch(function() {});
+  } else if (mode === 'static') {
+    _reloadFresh(); // 폰·GitHub Pages: 최신 자동갱신본 다시 불러오기
+  }
 }
 
 function renderSignal() {
