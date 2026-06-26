@@ -521,6 +521,8 @@ function buildChart(period, type) {
     timeScale: { borderColor: '#30363d', timeVisible: false, fixLeftEdge: true, fixRightEdge: true },
     // 모바일: 가격축을 세로로 끌면 차트가 늘어나는 기능 끔(실수 방지 + 스크럽 제스처와 충돌 방지)
     handleScale: isMobile ? { axisPressedMouseMove: { time: false, price: false } } : undefined,
+    // 십자선이 '다음 탭까지' 남는 기본동작 → '손가락 떼면 사라짐'으로 (탭 안 해도 바로 차트 이동 가능)
+    trackingMode: { exitMode: LightweightCharts.TrackingModeExitMode.OnTouchEnd },
   });
   window._chartInst = chart;
 
