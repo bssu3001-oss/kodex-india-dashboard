@@ -636,7 +636,7 @@ function renderInsights() {
   cards.push({label:'메모', val: sc.note || '–'});
   document.getElementById('scenario-grid').innerHTML = cards.map(function(s) {
     var border = s.strong ? 'border:1px solid #f7c948;' : '';
-    var badge = s.strong ? ' <span style="font-size:10px;color:#f7c948">★핵심</span>' : '';
+    var badge = s.strong ? ' <span style="font-size:10px;color:#f7c948">★핵심 지지</span>' : '';
     return '<div class="stat-card" style="' + border + '"><div class="stat-label">' + s.label + badge + '</div><div class="stat-value ' + (s.cls||'') + '">' + s.val + '</div></div>';
   }).join('');
 }

@@ -102,21 +102,20 @@ def evaluate(ind):
         banner = f"⚠️ 단기 과열 주의 (RSI {rsi:.0f}) — 신규 매수 자제"
 
     # --- Scenario: 분할 매수 플랜 ---
-    # 가까운 지지선들을 1·2·3차 진입가로, 균등 매수 가정 평단가 기준으로 손절·목표·손익비 산출
+    # 검출된 지지선 전체를 분할 진입가로(가장 강한 지지선도 진입 단계에 포함),
+    # 균등 매수 가정 평단가 기준으로 손절·목표·손익비 산출
     supports = ind["sr"].get("supports") or []
     if supports:
-        entries = supports[:3]  # nearest 3 (이미 가까운 순 정렬)
+        entries = supports[:4]  # 가까운 순, 검출된 지지선 전체(최대 4)
     else:
         entries = [round(current * 0.99, 0)]
     avg_entry = round(sum(entries) / len(entries), 0)  # 균등 분할 평단가
 
-    # 추세이탈선(손절): 진입 구간 아래 다음 지지선, 없으면 마지막 진입가 ATR×2 아래
-    if len(supports) > len(entries):
-        stop_loss = round(supports[len(entries)] * 0.995, 0)
-    elif atr:
-        stop_loss = round(entries[-1] - atr * 2, 0)
+    # 추세이탈선(손절): 가장 깊은 진입(=마지막 지지선) 아래. 그마저 깨지면 추세 이탈
+    if atr:
+        stop_loss = round(min(entries) - atr * 2, 0)
     else:
-        stop_loss = round(entries[-1] * 0.95, 0)
+        stop_loss = round(min(entries) * 0.97, 0)
 
     target1 = round(nearest_res, 0) if nearest_res and nearest_res > avg_entry else round(avg_entry * 1.10, 0)
     target2 = round(avg_entry * 1.15, 0)
