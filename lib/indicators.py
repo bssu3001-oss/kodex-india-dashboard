@@ -134,8 +134,8 @@ def support_resistance(candles, lookback=60):
                 clusters.append([p])
         return [round(sum(c) / len(c), 0) for c in clusters]
 
-    supports = sorted([p for p in cluster(swing_lows) if p < current * 1.02], reverse=True)[:4]
-    resistances = sorted([p for p in cluster(swing_highs) if p > current * 0.98])[:4]
+    supports = sorted([p for p in cluster(swing_lows) if p < current], reverse=True)[:4]
+    resistances = sorted([p for p in cluster(swing_highs) if p > current])[:4]
 
     nearest_support = supports[0] if supports else None
     nearest_resistance = resistances[0] if resistances else None

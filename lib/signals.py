@@ -106,7 +106,7 @@ def evaluate(ind):
     if atr:
         atr_stop = round(current - atr * 2, 0)
         stop_loss = max(stop_loss, atr_stop)  # less aggressive of the two
-    target1 = round(nearest_res, 0) if nearest_res else round(current * 1.10, 0)
+    target1 = round(nearest_res, 0) if nearest_res and nearest_res > current else round(current * 1.10, 0)
     target2 = round(current * 1.15, 0)
     risk = current - stop_loss
     reward = target1 - current
@@ -129,8 +129,9 @@ def evaluate(ind):
         f"거래량은 20일 평균 대비 {vol_vs_ma20:+.0f}%로 {'힘이 실리고 있습니다' if vol_vs_ma20 > 0 else '약해지고 있습니다'}.",
     ]
     if nearest_sup:
-        insight_lines.append(f"가장 가까운 지지선은 {nearest_sup:,.0f}원 (현재가 대비 -{dist_sup:.1f}%), 저항선은 {nearest_res:,.0f}원 (+{dist_res:.1f}%)입니다." if nearest_res else f"가장 가까운 지지선은 {nearest_sup:,.0f}원 (현재가 대비 -{dist_sup:.1f}%)입니다.")
-    if rr:
+        res_str = f", 저항선은 {nearest_res:,.0f}원 (+{dist_res:.1f}%)" if nearest_res else ""
+        insight_lines.append(f"가장 가까운 지지선은 {nearest_sup:,.0f}원 (현재가 대비 -{dist_sup:.1f}%){res_str}입니다.")
+    if rr and rr > 0:
         insight_lines.append(f"현재 진입 시 예상 손익비는 {rr:.1f}:1입니다. 손절선 {stop_loss:,.0f}원, 1차 목표 {target1:,.0f}원.")
     insight_lines.append("※ 분석 결과이며 투자 권유가 아닙니다. 매매 시 손절선 준수와 분할 진입을 권장합니다.")
 

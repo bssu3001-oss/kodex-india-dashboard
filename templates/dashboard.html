@@ -387,7 +387,7 @@ function renderSR() {
   html += '</div><div><div style="color:var(--red);font-weight:600;margin-bottom:6px">저항선</div>';
   (sr.resistances || []).forEach(function(r, i) {
     html += '<div style="padding:4px 0;' + (i === 0 ? 'font-weight:700;font-size:15px' : '') + '">' + fmt(r) + '원';
-    if (i === 0 && sr.dist_to_resistance_pct) html += ' <span style="color:var(--muted);font-size:12px">(+' + sr.dist_to_resistance_pct + '%)</span>';
+    if (i === 0 && sr.dist_to_resistance_pct != null) html += ' <span style="color:var(--muted);font-size:12px">(+' + sr.dist_to_resistance_pct + '%)</span>';
     html += '</div>';
   });
   if (!sr.resistances || !sr.resistances.length) html += '<span style="color:var(--muted)">–</span>';
