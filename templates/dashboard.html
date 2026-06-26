@@ -7,10 +7,10 @@
 <script src="vendor/lightweight-charts.standalone.production.js"></script>
 <style>
   :root {
-    --bg: #0d1117; --surface: #161b22; --border: #30363d;
-    --text: #e6edf3; --muted: #8b949e;
-    --up: #ef5350; --down: #1976d2; --neutral: #58a6ff;
-    --gold: #f0b429; --green: #26a69a; --red: #ef5350;
+    --bg: #ffffff; --surface: #f6f8fa; --border: #d0d7de;
+    --text: #1f2328; --muted: #57606a;
+    --up: #cf222e; --down: #0969da; --neutral: #0969da;
+    --gold: #7d4e00; --green: #1a7f37; --red: #cf222e;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: var(--bg); color: var(--text); font-family: -apple-system, 'Segoe UI', sans-serif; font-size: 14px; }
@@ -63,15 +63,15 @@
   .tgl.on[data-k="sr"]    { color:#26a69a; border-color:#26a69a; }
   .tgl.on[data-k="vol"]   { color:#8b949e; border-color:#8b949e; }
   .tgl-dot { width:7px; height:7px; border-radius:50%; background:currentColor; flex-shrink:0; }
-  #chart-popup { position:absolute; z-index:20; background:rgba(18,22,28,0.97); border:1px solid #30363d; border-radius:8px; padding:10px 13px; font-size:12px; min-width:210px; pointer-events:none; box-shadow:0 4px 16px rgba(0,0,0,0.5); display:none; }
-  #chart-popup .pp-date { font-weight:700; color:#e6edf3; font-size:13px; margin-bottom:7px; }
+  #chart-popup { position:absolute; z-index:20; background:rgba(255,255,255,0.97); border:1px solid #d0d7de; border-radius:8px; padding:10px 13px; font-size:12px; min-width:210px; pointer-events:none; box-shadow:0 4px 16px rgba(0,0,0,0.12); display:none; }
+  #chart-popup .pp-date { font-weight:700; color:#1f2328; font-size:13px; margin-bottom:7px; }
   #chart-popup table { width:100%; border-collapse:collapse; }
   #chart-popup td { padding:2px 0; }
-  #chart-popup td:first-child { color:#8b949e; width:32px; }
+  #chart-popup td:first-child { color:#57606a; width:32px; }
   #chart-popup td:nth-child(2) { text-align:right; font-weight:600; padding-right:6px; }
   #chart-popup td:nth-child(3) { text-align:right; font-size:11px; width:52px; }
-  #chart-popup .pp-sep { border-top:1px solid #30363d; margin:6px 0; }
-  #chart-popup .pp-ma-hd { color:#8b949e; font-size:11px; margin-bottom:4px; }
+  #chart-popup .pp-sep { border-top:1px solid #d0d7de; margin:6px 0; }
+  #chart-popup .pp-ma-hd { color:#57606a; font-size:11px; margin-bottom:4px; }
   #chart-wrap { position:relative; }
   .insight-text { line-height: 1.8; color: var(--text); font-size: 14px; }
   .scenario-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-top: 12px; }
@@ -242,7 +242,7 @@ const D = RAW;
 let currentPeriod = '6M';
 let currentType = 'daily';
 
-const MA_COLORS = {'5': '#f7c948', '20': '#e884f7', '60': '#4cafe9', '120': '#f77c48'};
+const MA_COLORS = {'5': '#c9a800', '20': '#9333ea', '60': '#0284c7', '120': '#ea6c00'};
 
 function fmt(n, dec) {
   if (n == null) return '–';
@@ -504,15 +504,15 @@ function buildChart(period, type) {
   var chart = LightweightCharts.createChart(container, {
     width: container.clientWidth,
     height: isMobile ? 360 : 480,
-    layout: { background: { color: '#0d1117' }, textColor: '#c9d1d9', fontSize: isMobile ? 10 : 12 },
-    grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
+    layout: { background: { color: '#ffffff' }, textColor: '#24292f', fontSize: isMobile ? 10 : 12 },
+    grid: { vertLines: { color: 'rgba(0,0,0,0.06)' }, horzLines: { color: 'rgba(0,0,0,0.06)' } },
     crosshair: {
       mode: LightweightCharts.CrosshairMode.Magnet,
-      vertLine: { color: '#58a6ff', width: 1, style: 2, labelBackgroundColor: '#1f6feb' },
-      horzLine: { color: '#58a6ff', width: 1, style: 2, labelBackgroundColor: '#1f6feb' },
+      vertLine: { color: '#0969da', width: 1, style: 2, labelBackgroundColor: '#0969da' },
+      horzLine: { color: '#0969da', width: 1, style: 2, labelBackgroundColor: '#0969da' },
     },
-    rightPriceScale: { borderColor: '#30363d', scaleMargins: { top: 0.05, bottom: 0.22 } },
-    timeScale: { borderColor: '#30363d', timeVisible: false, fixLeftEdge: true, fixRightEdge: true },
+    rightPriceScale: { borderColor: '#d0d7de', scaleMargins: { top: 0.05, bottom: 0.22 } },
+    timeScale: { borderColor: '#d0d7de', timeVisible: false, fixLeftEdge: true, fixRightEdge: true },
     // 모바일: 가격축을 세로로 끌면 차트가 늘어나는 기능 끔(실수 방지 + 스크럽 제스처와 충돌 방지)
     handleScale: isMobile ? { axisPressedMouseMove: { time: false, price: false } } : undefined,
     // 십자선이 '다음 탭까지' 남는 기본동작 → '손가락 떼면 사라짐'으로 (탭 안 해도 바로 차트 이동 가능)
@@ -522,11 +522,11 @@ function buildChart(period, type) {
 
   // 캔들스틱 — 전체 데이터
   var candleSeries = chart.addCandlestickSeries({
-    upColor: '#ff5b6a', downColor: '#3d9bff',
-    borderUpColor: '#ff7480', borderDownColor: '#5fb0ff',
-    wickUpColor: '#ff7480', wickDownColor: '#5fb0ff',
+    upColor: '#e53935', downColor: '#1976d2',
+    borderUpColor: '#c62828', borderDownColor: '#1565c0',
+    wickUpColor: '#c62828', wickDownColor: '#1565c0',
     lastValueVisible: true, priceLineVisible: true,
-    priceLineColor: '#58a6ff', priceLineWidth: 1, priceLineStyle: 2,
+    priceLineColor: '#0969da', priceLineWidth: 1, priceLineStyle: 2,
   });
   candleSeries.setData(allCandles.map(function(c) {
     return {time: c.date, open: c.open, high: c.high, low: c.low, close: c.close};
@@ -613,7 +613,7 @@ function buildChart(period, type) {
     document.getElementById('pp-ma').innerHTML = maRows.map(function(r) {
       var v = d.ma && d.ma[r[0]]; if (!v) return '';
       var col = chgCol(v,pc);
-      return '<tr><td style="color:#8b949e;width:52px">'+r[1]+'</td><td style="text-align:right;padding-right:6px;font-weight:600;color:'+col+'">'+fmt(v)+'</td><td style="text-align:right;font-size:11px;color:'+col+'">'+chgStr(v,pc)+'</td></tr>';
+      return '<tr><td style="color:#57606a;width:52px">'+r[1]+'</td><td style="text-align:right;padding-right:6px;font-weight:600;color:'+col+'">'+fmt(v)+'</td><td style="text-align:right;font-size:11px;color:'+col+'">'+chgStr(v,pc)+'</td></tr>';
     }).join('');
 
     var popW = Math.min(224, container.clientWidth - 12), cw = container.clientWidth;
@@ -737,7 +737,7 @@ function renderTrend() {
     '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:16px">' +
     order.map(function(it, i){
       var pill = '<span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:14px;' +
-        'background:rgba(255,255,255,0.04);border:1px solid ' + it.c + ';' + (it.strong?'font-weight:700;':'') + '">' +
+        'background:rgba(0,0,0,0.03);border:1px solid ' + it.c + ';' + (it.strong?'font-weight:700;':'') + '">' +
         '<span style="width:7px;height:7px;border-radius:50%;background:' + it.c + ';flex-shrink:0"></span>' +
         '<span style="color:' + it.c + '">' + it.k + '</span>' +
         '<span style="color:var(--text);font-size:12px">' + fmt(it.v) + '</span></span>';
