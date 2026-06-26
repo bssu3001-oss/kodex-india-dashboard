@@ -69,7 +69,8 @@ def evaluate(ind):
         reasons.append(f"저항선 근접 ({dist_res:.1f}% 아래) — 익절/관망 구간")
 
     # --- Verdict ---
-    if score <= -2 and alignment == "역배열":
+    # 역배열 + 데드크로스 + RSI 과열 + 거래량 감소 등 복합 하락 신호 (score <= -5) → 매도 검토
+    if score <= -5 and alignment == "역배열":
         verdict = "매도 검토"
         confidence = "높음"
     elif alignment == "역배열":
