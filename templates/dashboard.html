@@ -25,6 +25,11 @@
   .header-price { font-size: 32px; font-weight: 700; }
   .header-change { font-size: 18px; font-weight: 600; margin-left: 10px; }
   .header-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-top: 12px; }
+  .refresh-btn { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 5px 12px; border-radius: 8px; cursor: pointer; font-size: 12px; transition: all 0.15s; }
+  .refresh-btn:hover:not(:disabled) { border-color: var(--green); color: var(--green); }
+  .refresh-btn:disabled { opacity: 0.6; cursor: default; }
+  .auto-toggle { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); cursor: pointer; user-select: none; }
+  .auto-toggle input { cursor: pointer; }
   .stat-card { background: var(--bg); border-radius: 6px; padding: 10px; }
   .stat-label { font-size: 11px; color: var(--muted); }
   .stat-value { font-size: 15px; font-weight: 600; margin-top: 2px; }
@@ -88,9 +93,14 @@
   <div id="banner" class="banner hidden"></div>
 
   <div class="panel" id="panel-header">
-    <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:4px">
+    <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px">
       <span style="font-size:18px;font-weight:700;color:var(--muted)">KODEX 인도Nifty50 (453810)</span>
-      <span id="market-status" style="font-size:12px;padding:2px 8px;border-radius:10px;margin-left:8px"></span>
+      <span id="market-status" style="font-size:12px;padding:2px 8px;border-radius:10px"></span>
+      <span id="freshness" style="font-size:12px;padding:2px 8px;border-radius:10px"></span>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+        <button id="refresh-btn" class="refresh-btn" onclick="manualRefresh()">🔄 데이터 갱신</button>
+        <label class="auto-toggle"><input type="checkbox" id="auto-refresh" onchange="toggleAuto()"> 자동 갱신</label>
+      </div>
     </div>
     <div style="margin-top:8px;display:flex;align-items:baseline;gap:8px">
       <span class="header-price" id="price">–</span>
@@ -266,6 +276,64 @@ function renderHeader() {
     var dt = new Date(q.traded_at);
     document.getElementById('data-time').textContent = '기준시각: ' + dt.toLocaleString('ko-KR') + ' (네이버 금융)';
   }
+}
+
+// ---- 데이터 신선도 + 갱신 ----
+function updateFreshness() {
+  var el = document.getElementById('freshness');
+  if (!el || !D.generated_at) return;
+  var gen = new Date(D.generated_at);
+  var mins = Math.floor((Date.now() - gen.getTime()) / 60000);
+  if (mins < 0) mins = 0;
+  var ago = mins < 1 ? '방금' : (mins < 60 ? mins + '분 전' : Math.floor(mins / 60) + '시간 ' + (mins % 60) + '분 전');
+  var ms = (D.quote && D.quote.market_status) || '';
+  var txt, bg, col;
+  if (ms === 'CLOSE') {
+    txt = '🕖 장마감 · ' + ago + ' 갱신'; bg = 'rgba(139,148,158,0.15)'; col = 'var(--muted)';
+  } else if (mins >= 30) {
+    txt = '🟡 ' + ago + ' 갱신 — 갱신 권장'; bg = 'rgba(240,180,41,0.15)'; col = 'var(--gold)';
+  } else {
+    txt = '🟢 ' + ago + ' 갱신'; bg = 'rgba(38,166,154,0.15)'; col = 'var(--green)';
+  }
+  el.textContent = txt; el.style.background = bg; el.style.color = col;
+}
+
+function _rebuild() {
+  return fetch('api/rebuild', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(j) { if (!j || !j.ok) throw new Error(j && j.error || '갱신 실패'); return j; });
+}
+
+function manualRefresh() {
+  var btn = document.getElementById('refresh-btn');
+  if (btn.disabled) return;
+  var orig = btn.textContent;
+  btn.disabled = true; btn.textContent = '⏳ 갱신 중...';
+  _rebuild()
+    .then(function() { location.reload(); })
+    .catch(function() {
+      btn.disabled = false; btn.textContent = orig;
+      alert('데이터 갱신은 서버로 실행했을 때만 됩니다.\n\n"대시보드_서버.command" 를 더블클릭해 서버를 켠 뒤, 열린 localhost 주소에서 사용하세요.\n(지금은 갱신 서버에 연결할 수 없습니다.)');
+    });
+}
+
+function toggleAuto() {
+  var on = document.getElementById('auto-refresh').checked;
+  if (on) localStorage.setItem('autoRefresh', '1'); else localStorage.removeItem('autoRefresh');
+}
+
+function isMarketHours() {
+  var d = new Date();
+  var day = d.getDay(); // 0=일, 6=토
+  if (day === 0 || day === 6) return false;
+  var mins = d.getHours() * 60 + d.getMinutes();
+  return mins >= 9 * 60 && mins <= 15 * 60 + 30; // 09:00 ~ 15:30 KST
+}
+
+function autoTick() {
+  if (!localStorage.getItem('autoRefresh')) return;
+  if (!isMarketHours()) return; // 장중에만
+  _rebuild().then(function() { location.reload(); }).catch(function() {});
 }
 
 function renderSignal() {
@@ -721,6 +789,12 @@ window.addEventListener('DOMContentLoaded', function() {
   var _sc = D.signal && D.signal.scenario;
   if (_sc && _sc.entry) document.getElementById('calc-entry').value = _sc.entry;
   calcRisk();
+
+  // 데이터 신선도 표시 + 자동 갱신
+  updateFreshness();
+  setInterval(updateFreshness, 30000);
+  if (localStorage.getItem('autoRefresh')) document.getElementById('auto-refresh').checked = true;
+  setInterval(autoTick, 5 * 60 * 1000); // 5분마다 (장중에만 실제 갱신)
 });
 </script>
 </body>
