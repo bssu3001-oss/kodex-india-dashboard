@@ -326,10 +326,10 @@ function toggleOverlay(key) {
 function _addSRLines(candle, arr) {
   var sr = D.indicators.sr || {};
   (sr.supports || []).forEach(function(level, i) {
-    arr.push(candle.createPriceLine({price:level, color:'rgba(38,166,154,0.85)', lineWidth:1, lineStyle:2, axisLabelVisible:true, title: i===0?'지지':''}));
+    arr.push(candle.createPriceLine({price:level, color:'rgba(38,166,154,0.85)', lineWidth:1, lineStyle:2, axisLabelVisible:false, title: i===0?'지지':''}));
   });
   (sr.resistances || []).forEach(function(level, i) {
-    arr.push(candle.createPriceLine({price:level, color:'rgba(239,83,80,0.85)', lineWidth:1, lineStyle:2, axisLabelVisible:true, title: i===0?'저항':''}));
+    arr.push(candle.createPriceLine({price:level, color:'rgba(239,83,80,0.85)', lineWidth:1, lineStyle:2, axisLabelVisible:false, title: i===0?'저항':''}));
   });
 }
 
@@ -397,8 +397,8 @@ function buildChart(period, type) {
     if (!sma[p] || !sma[p].length) return;
     var s = chart.addLineSeries({
       color: MA_COLORS[p], lineWidth: 1,
-      priceLineVisible: false, lastValueVisible: true,
-      crosshairMarkerVisible: false, title: 'MA'+p,
+      priceLineVisible: false, lastValueVisible: false,
+      crosshairMarkerVisible: false,
       visible: window._tog['ma'+p],
     });
     s.setData(sma[p].map(function(d) { return {time:d.date, value:d.value}; }));
