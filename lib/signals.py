@@ -102,18 +102,20 @@ def evaluate(ind):
         banner = f"⚠️ 단기 과열 주의 (RSI {rsi:.0f}) — 신규 매수 자제"
 
     # --- Scenario ---
-    stop_loss = round(current * 0.93, 0)  # default -7%
+    # 진입 후보가 기준으로 손절·목표·손익비를 일관되게 계산 (지지선 근처 대기 매수 플랜)
+    entry = round(nearest_sup * 1.001, 0) if nearest_sup else current  # 지지선 근처, 없으면 현재가
+    stop_loss = round(entry * 0.93, 0)  # default -7%
     if atr:
-        atr_stop = round(current - atr * 2, 0)
+        atr_stop = round(entry - atr * 2, 0)
         stop_loss = max(stop_loss, atr_stop)  # less aggressive of the two
-    target1 = round(nearest_res, 0) if nearest_res and nearest_res > current else round(current * 1.10, 0)
-    target2 = round(current * 1.15, 0)
-    risk = current - stop_loss
-    reward = target1 - current
+    target1 = round(nearest_res, 0) if nearest_res and nearest_res > entry else round(entry * 1.10, 0)
+    target2 = round(entry * 1.15, 0)
+    risk = entry - stop_loss
+    reward = target1 - entry
     rr = round(reward / risk, 2) if risk > 0 else None
 
     scenario = {
-        "entry": round(nearest_sup * 1.001, 0) if nearest_sup else current,
+        "entry": entry,
         "stop_loss": stop_loss,
         "target": target1,
         "target2": target2,
@@ -132,7 +134,7 @@ def evaluate(ind):
         res_str = f", 저항선은 {nearest_res:,.0f}원 (+{dist_res:.1f}%)" if nearest_res else ""
         insight_lines.append(f"가장 가까운 지지선은 {nearest_sup:,.0f}원 (현재가 대비 -{dist_sup:.1f}%){res_str}입니다.")
     if rr and rr > 0:
-        insight_lines.append(f"현재 진입 시 예상 손익비는 {rr:.2f}:1입니다. 손절선 {stop_loss:,.0f}원, 1차 목표 {target1:,.0f}원.")
+        insight_lines.append(f"진입 후보가 {entry:,.0f}원 기준 예상 손익비는 {rr:.2f}:1입니다. 손절선 {stop_loss:,.0f}원, 1차 목표 {target1:,.0f}원.")
     insight_lines.append("※ 분석 결과이며 투자 권유가 아닙니다. 매매 시 손절선 준수와 분할 진입을 권장합니다.")
 
     return {

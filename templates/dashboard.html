@@ -696,6 +696,9 @@ window.addEventListener('DOMContentLoaded', function() {
   renderBacktest();
   renderMacro();
   buildChart(currentPeriod, currentType);
+  // 리스크 계산기 매수가 기본값을 종합 시나리오의 진입 후보가로 프리필 (두 카드 일관성)
+  var _sc = D.signal && D.signal.scenario;
+  if (_sc && _sc.entry) document.getElementById('calc-entry').value = _sc.entry;
   calcRisk();
 });
 </script>
