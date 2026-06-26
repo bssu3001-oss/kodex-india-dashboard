@@ -1,6 +1,8 @@
 __pycache__/
 *.pyc
 .pytest_cache/
-dashboard.html
-data/last_good.json
 .DS_Store
+.claude/
+
+# dashboard.html, data/last_good.json 은 GitHub Pages 배포를 위해 추적합니다
+# (GitHub Actions가 주기적으로 다시 빌드해 커밋)

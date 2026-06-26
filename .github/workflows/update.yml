@@ -1,0 +1,39 @@
+name: 대시보드 자동 갱신
+
+on:
+  schedule:
+    # UTC 기준. KST 09:00~16:59(평일) 동안 30분마다 = UTC 00:00~07:59
+    - cron: '*/30 0-7 * * 1-5'
+  workflow_dispatch: {}   # 수동 실행 버튼
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dashboard-update
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 대시보드 빌드 (의존성 없음, 표준 라이브러리만)
+        run: python -c "from build import build; build(open_browser=False)"
+
+      - name: 변경 있으면 커밋 & 푸시
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dashboard.html data/last_good.json
+          if git diff --staged --quiet; then
+            echo "변경 없음 — 커밋 안 함"
+          else
+            git commit -m "데이터 자동 갱신 [skip ci]"
+            git push
+          fi

@@ -66,6 +66,27 @@ class TestEvaluate(unittest.TestCase):
         result = evaluate(make_ind())
         self.assertIn(result["confidence"], ["높음", "보통", "낮음"])
 
+    def test_target2_is_strongest_resistance_above_target1(self):
+        ind = make_ind()
+        ind["sr"]["supports"] = [12900, 12800, 12700, 12600]
+        ind["sr"]["nearest_resistance"] = 13200
+        ind["sr"]["resistance_meta"] = [
+            {"level": 13200, "touches": 5, "confluence": 0, "score": 5},
+            {"level": 13400, "touches": 20, "confluence": 1, "score": 23},  # 1차 위 가장 강함
+            {"level": 13600, "touches": 8, "confluence": 0, "score": 8},
+        ]
+        sc = evaluate(ind)["scenario"]
+        self.assertEqual(sc["target"], 13200)   # 1차 = 가장 가까운 저항선
+        self.assertEqual(sc["target2"], 13400)  # 2차 = 1차 위 가장 강한 저항선 (임의값 아님)
+
+    def test_target2_none_when_no_resistance_above(self):
+        ind = make_ind()
+        ind["sr"]["supports"] = [12900, 12800]
+        ind["sr"]["nearest_resistance"] = 13200
+        ind["sr"]["resistance_meta"] = [{"level": 13200, "touches": 5, "confluence": 0, "score": 5}]
+        sc = evaluate(ind)["scenario"]
+        self.assertIsNone(sc["target2"])  # 위에 저항 없으면 "저항 없음"
+
 
 if __name__ == "__main__":
     unittest.main()

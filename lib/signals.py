@@ -118,7 +118,12 @@ def evaluate(ind):
         stop_loss = round(min(entries) * 0.97, 0)
 
     target1 = round(nearest_res, 0) if nearest_res and nearest_res > avg_entry else round(avg_entry * 1.10, 0)
-    target2 = round(avg_entry * 1.15, 0)
+
+    # 2차 목표 = 1차 목표 위 저항선 중 '가장 강한(가장 많이 막힌)' 것. 없으면 None → "저항 없음"
+    res_meta = ind["sr"].get("resistance_meta") or []
+    above_t1 = [m for m in res_meta if m["level"] > target1]
+    target2 = round(max(above_t1, key=lambda m: m["score"])["level"], 0) if above_t1 else None
+
     risk = avg_entry - stop_loss
     reward = target1 - avg_entry
     rr = round(reward / risk, 2) if risk > 0 else None
@@ -132,6 +137,7 @@ def evaluate(ind):
         "target2": target2,
         "risk_reward": rr,
         "strongest_support": ind["sr"].get("strongest_support"),
+        "strongest_resistance": ind["sr"].get("strongest_resistance"),
         "note": "지지선 분할 매수, 저항선 근처 분할 익절" if verdict == "매수 검토" else "추세 확인 후 분할 진입",
     }
 

@@ -125,6 +125,28 @@ class TestSupportResistance(unittest.TestCase):
         for r in result["resistances"]:
             self.assertGreaterEqual(r, current * 0.98)
 
+    def test_resistance_strength_fields_present(self):
+        candles = load_candles()
+        result = self.sr(candles)
+        self.assertIn("resistance_meta", result)
+        self.assertIn("strongest_resistance", result)
+        # meta는 각 저항선마다 하나씩
+        self.assertEqual(len(result["resistance_meta"]), len(result["resistances"]))
+        for m in result["resistance_meta"]:
+            self.assertIn("touches", m)
+            self.assertIn("score", m)
+            self.assertEqual(m["score"], m["touches"] + m["confluence"] * 3)
+
+    def test_strongest_resistance_is_highest_score(self):
+        candles = load_candles()
+        result = self.sr(candles)
+        if result["resistances"]:
+            self.assertIn(result["strongest_resistance"], result["resistances"])
+            best = max(result["resistance_meta"], key=lambda m: m["score"])
+            self.assertEqual(result["strongest_resistance"], best["level"])
+        else:
+            self.assertIsNone(result["strongest_resistance"])
+
 
 class TestWeeklyAgg(unittest.TestCase):
     def test_weekly_candles_fewer_than_daily(self):

@@ -97,6 +97,50 @@ def fetch_nav():
 
 
 def fetch_news(count=8):
+    """인도 증시 관련 뉴스 (구글 뉴스 RSS). 실패 시 네이버 종목뉴스로 fallback."""
+    import urllib.parse
+    import xml.etree.ElementTree as ET
+    from email.utils import parsedate_to_datetime
+
+    queries = ["인도 증시", "인도 ETF"]
+    seen = set()
+    items = []
+    for q in queries:
+        url = "https://news.google.com/rss/search?" + urllib.parse.urlencode(
+            {"q": q, "hl": "ko", "gl": "KR", "ceid": "KR:ko"})
+        req = urllib.request.Request(url, headers=HEADERS)
+        try:
+            with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+                root = ET.fromstring(resp.read())
+        except Exception:
+            continue
+        for it in root.findall(".//item"):
+            title = (it.findtext("title") or "").strip()
+            link = (it.findtext("link") or "").strip()
+            pub = it.findtext("pubDate") or ""
+            if not title or title in seen:
+                continue
+            # 인도·Nifty 관련만 남기고 잡음 제거
+            if "인도" not in title and "니프티" not in title and "nifty" not in title.lower():
+                continue
+            seen.add(title)
+            try:
+                dt = parsedate_to_datetime(pub)
+                date = dt.astimezone().strftime("%Y-%m-%d %H:%M")
+                sort_key = dt.timestamp()
+            except Exception:
+                date = pub[:16]
+                sort_key = 0.0
+            items.append({"title": title, "date": date, "url": link, "_k": sort_key})
+
+    items.sort(key=lambda x: x["_k"], reverse=True)
+    result = [{"title": i["title"], "date": i["date"], "url": i["url"]} for i in items[:count]]
+    if result:
+        return result
+    return _fetch_news_naver(count)  # 인도 뉴스 못 받으면 기존 방식으로
+
+
+def _fetch_news_naver(count=8):
     raw = _get(f"https://m.stock.naver.com/api/news/list?code={TICKER}&pageSize={count}")
     if raw and isinstance(raw, list):
         result = []

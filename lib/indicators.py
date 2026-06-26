@@ -13,8 +13,10 @@ def sma_series(candles, period):
 
 
 def sma_current(candles, period):
-    series = sma_series(candles, period)
-    return series[-1]["value"] if series else None
+    # 전체 시계열을 만들지 않고 마지막 period개만 평균 (sma_series[-1]과 동일 결과, 훨씬 빠름)
+    if len(candles) < period:
+        return None
+    return round(sum(c["close"] for c in candles[-period:]) / period, 2)
 
 
 def rsi_current(candles, period=14):
@@ -98,20 +100,24 @@ def detect_crosses(candles):
     return {"golden": golden, "dead": dead}
 
 
-def support_resistance(candles, lookback=60):
+def support_resistance(candles, lookback=60, res_lookback=250):
     recent = candles[-lookback:] if len(candles) >= lookback else candles
+    res_recent = candles[-res_lookback:] if len(candles) >= res_lookback else candles
     current = candles[-1]["close"]
 
-    # Swing highs/lows (window=3)
-    swing_highs = []
+    # 지지선용 스윙 저점: 최근 구간 (매수 진입은 '최근' 지지가 중요)
     swing_lows = []
     for i in range(2, len(recent) - 2):
-        h = recent[i]["high"]
         l = recent[i]["low"]
-        if h == max(c["high"] for c in recent[i - 2 : i + 3]):
-            swing_highs.append(h)
         if l == min(c["low"] for c in recent[i - 2 : i + 3]):
             swing_lows.append(l)
+
+    # 저항선용 스윙 고점: 더 긴 구간 (머리 위 천장은 멀리까지 봐야 2차 목표가 잡힘)
+    swing_highs = []
+    for i in range(2, len(res_recent) - 2):
+        h = res_recent[i]["high"]
+        if h == max(c["high"] for c in res_recent[i - 2 : i + 3]):
+            swing_highs.append(h)
 
     # Add key MAs as S/R candidates
     for p in (20, 60, 120):
@@ -135,7 +141,7 @@ def support_resistance(candles, lookback=60):
         return [round(sum(c) / len(c), 0) for c in clusters]
 
     supports = sorted([p for p in cluster(swing_lows) if p < current], reverse=True)[:4]
-    resistances = sorted([p for p in cluster(swing_highs) if p > current])[:4]
+    resistances = sorted([p for p in cluster(swing_highs) if p > current])[:5]
 
     nearest_support = supports[0] if supports else None
     nearest_resistance = resistances[0] if resistances else None
@@ -160,11 +166,31 @@ def support_resistance(candles, lookback=60):
             best_score = score
             strongest_support = s
 
+    # 저항선 강도: 고가가 그 가격대에 닿아 막힌 횟수(테스트) + 이평선 겹침.
+    # 2차 목표로 쓸 '가장 확률 높은(가장 많이 막힌) 저항선'을 고른다.
+    def _res_strength(level):
+        band = level * 0.007  # ±0.7%
+        touches = sum(1 for c in res_recent if abs(c["high"] - level) <= band)
+        confluence = sum(1 for m in ma_levels if abs(m - level) / level <= 0.012)
+        return touches, confluence, touches + confluence * 3
+
+    resistance_meta = []
+    strongest_resistance = None
+    best_res_score = -1
+    for r in resistances:
+        t, conf, score = _res_strength(r)
+        resistance_meta.append({"level": r, "touches": t, "confluence": conf, "score": score})
+        if score > best_res_score:
+            best_res_score = score
+            strongest_resistance = r
+
     return {
         "supports": supports,
         "resistances": resistances,
         "support_meta": support_meta,
+        "resistance_meta": resistance_meta,
         "strongest_support": strongest_support,
+        "strongest_resistance": strongest_resistance,
         "nearest_support": nearest_support,
         "nearest_resistance": nearest_resistance,
         "dist_to_support_pct": round((current - nearest_support) / current * 100, 2) if nearest_support else None,

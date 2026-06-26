@@ -82,9 +82,19 @@
   .news-title { color: var(--text); text-decoration: none; font-size: 13px; }
   .news-title:hover { color: var(--neutral); }
   .news-date { font-size: 11px; color: var(--muted); margin-top: 2px; }
-  .macro-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-  .bt-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+  .macro-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .bt-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 12px; }
   .footer { color: var(--muted); font-size: 11px; text-align: center; padding: 16px; line-height: 1.6; }
+
+  /* 모바일(좁은 화면) 대응 */
+  @media (max-width: 600px) {
+    .container { padding: 10px; }
+    .panel { padding: 12px; }
+    .header-price { font-size: 26px; }
+    .header-change { font-size: 15px; }
+    /* 넓은 표(백테스트·일별체결 등)는 잘리지 않게 가로 스크롤 */
+    .data-table { display: block; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; }
+  }
 </style>
 </head>
 <body>
@@ -117,6 +127,7 @@
       <span class="signal-badge" id="signal-badge">–</span>
     </div>
     <ul class="reasons-list" id="signal-reasons"></ul>
+    <div id="signal-bt-note"></div>
   </div>
 
   <div class="panel">
@@ -348,6 +359,23 @@ function renderSignal() {
   document.getElementById('signal-reasons').innerHTML = (sig.reasons || []).map(function(r) {
     return '<li>' + r + '</li>';
   }).join('');
+
+  // 정직성 경고: '매수 검토' 신호를 과거에 따랐을 때의 실제 성적(백테스트)
+  var noteEl = document.getElementById('signal-bt-note');
+  if (noteEl) {
+    var bt = D.backtest || {};
+    if (sig.verdict === '매수 검토' && bt.total_trades) {
+      var neg = bt.avg_return_pct < 0;
+      var col = neg ? 'var(--gold)' : 'var(--green)';
+      var bg = neg ? 'rgba(240,180,41,0.12)' : 'rgba(38,166,154,0.1)';
+      noteEl.innerHTML = '<div style="margin-top:10px;padding:8px 11px;border-radius:6px;font-size:12px;background:' + bg + ';border:1px solid ' + col + ';color:' + col + '">' +
+        '⚠️ 참고: 이 “매수 검토” 신호대로 과거에 매매했을 때 성적은 ' +
+        bt.total_trades + '회 중 승률 ' + bt.win_rate + '%, 평균 ' + pct(bt.avg_return_pct) + ' 였습니다.' +
+        (neg ? ' 신호만 믿지 말고 분할 진입·손절을 반드시 지키세요.' : '') + '</div>';
+    } else {
+      noteEl.innerHTML = '';
+    }
+  }
   if (sig.banner) {
     var b = document.getElementById('banner');
     b.textContent = sig.banner;
@@ -403,8 +431,15 @@ function _addSRLines(candle, arr) {
       title: isStrong ? '핵심지지' : (i === 0 ? '지지' : '')
     }));
   });
+  var strongR = sr.strongest_resistance;
   (sr.resistances || []).forEach(function(level, i) {
-    arr.push(candle.createPriceLine({price:level, color:'rgba(239,83,80,0.85)', lineWidth:1, lineStyle:2, axisLabelVisible:false, title: i===0?'저항':''}));
+    var isStrongR = strongR != null && Math.round(level) === Math.round(strongR);
+    arr.push(candle.createPriceLine({
+      price: level,
+      color: isStrongR ? 'rgba(247,201,72,0.95)' : 'rgba(239,83,80,0.85)',
+      lineWidth: isStrongR ? 2 : 1, lineStyle: 2, axisLabelVisible: false,
+      title: isStrongR ? '핵심저항' : (i === 0 ? '저항' : '')
+    }));
   });
 }
 
@@ -646,9 +681,15 @@ function renderSR() {
   });
   if (!sr.supports || !sr.supports.length) html += '<span style="color:var(--muted)">–</span>';
   html += '</div><div><div style="color:var(--red);font-weight:600;margin-bottom:6px">저항선</div>';
+  var strongR = sr.strongest_resistance;
+  var rMeta = {};
+  (sr.resistance_meta || []).forEach(function(m){ rMeta[Math.round(m.level)] = m; });
   (sr.resistances || []).forEach(function(r, i) {
-    html += '<div style="padding:4px 0;' + (i === 0 ? 'font-weight:700;font-size:15px' : '') + '">' + fmt(r) + '원';
+    var isStrongR = strongR != null && Math.round(r) === Math.round(strongR);
+    var rm = rMeta[Math.round(r)] || {};
+    html += '<div style="padding:4px 0;' + (i === 0 ? 'font-weight:700;font-size:15px;' : '') + (isStrongR ? 'color:#f7c948;' : '') + '">' + fmt(r) + '원';
     if (i === 0 && sr.dist_to_resistance_pct != null) html += ' <span style="color:var(--muted);font-size:12px">(+' + sr.dist_to_resistance_pct + '%)</span>';
+    if (isStrongR) html += ' <span style="font-size:11px;color:#f7c948">★가장 강한 저항 (테스트 ' + (rm.touches || 0) + '회' + (rm.confluence ? ', 이평선 겹침' : '') + ')</span>';
     html += '</div>';
   });
   if (!sr.resistances || !sr.resistances.length) html += '<span style="color:var(--muted)">–</span>';
@@ -698,8 +739,8 @@ function renderInsights() {
   });
   cards.push({label:'균등 평단', val: fmt(sc.avg_entry || sc.entry) + '원'});
   cards.push({label:'추세이탈선(손절)', val: fmt(sc.stop_loss) + '원', cls:'down'});
-  cards.push({label:'1차 목표 (저항선)', val: fmt(sc.target) + '원', cls:'up'});
-  cards.push({label:'2차 목표', val: fmt(sc.target2) + '원', cls:'up'});
+  cards.push({label:'1차 목표 (가까운 저항선)', val: fmt(sc.target) + '원', cls:'up'});
+  cards.push({label:'2차 목표 (가장 강한 저항선)', val: sc.target2 ? fmt(sc.target2) + '원' : '저항 없음', cls: sc.target2 ? 'up' : ''});
   cards.push({label:'손익비 (평단 기준)', val: sc.risk_reward ? sc.risk_reward + ':1' : '–'});
   cards.push({label:'메모', val: sc.note || '–'});
   document.getElementById('scenario-grid').innerHTML = cards.map(function(s) {
@@ -714,26 +755,50 @@ function calcRisk() {
   var amount = parseFloat(document.getElementById('calc-amount').value) || 1000000;
   var atr = D.indicators.atr || 0;
   if (!entry) { document.getElementById('calc-result').innerHTML = ''; return; }
-  var stopDefault = entry * 0.93;
-  var stopATR = atr ? entry - atr * 2 : null;
-  var stop = stopATR ? Math.max(stopDefault, stopATR) : stopDefault;
-  var target = entry * 1.10;
+
+  // 손절 = 시나리오의 '추세이탈선' (전략의 실제 손절선)으로 통일 → 시나리오와 손익비 일치.
+  // 입력가가 그 선보다 낮으면(또는 시나리오 없으면) ATR×2 fallback.
+  var scStop = (D.signal && D.signal.scenario && D.signal.scenario.stop_loss) || null;
+  var useScenarioStop = scStop && scStop < entry;
+  var stop = useScenarioStop ? scStop : (atr ? entry - atr * 2 : entry * 0.93);
+  var stopLabel = useScenarioStop ? '손절가 (추세이탈선)' : '손절가 (ATR×2)';
+
+  // 목표 = 저항선 기준 (시나리오와 동일). 입력가 위에 저항이 없을 때만 +10% 추정값.
+  var sr = D.indicators.sr || {};
+  var resAbove = (sr.resistances || []).filter(function(r){ return r > entry; }).sort(function(a, b){ return a - b; });
+  var target, targetLabel;
+  if (resAbove.length) {
+    target = resAbove[0];
+    targetLabel = '1차 목표 (저항선)';
+  } else {
+    target = entry * 1.10;
+    targetLabel = '1차 목표 (위 저항 없음 → 추정 +10%)';
+  }
+  // 2차 목표 = 1차 목표 위 저항선 중 가장 강한(많이 막힌) 것
+  var scoreBy = {};
+  (sr.resistance_meta || []).forEach(function(m){ scoreBy[Math.round(m.level)] = m.score; });
+  var t2cand = resAbove.filter(function(r){ return r > target; });
+  var target2 = t2cand.length ? t2cand.reduce(function(a, b){ return (scoreBy[Math.round(b)]||0) > (scoreBy[Math.round(a)]||0) ? b : a; }) : null;
+
   var risk = entry - stop;
   var reward = target - entry;
   var rr = risk > 0 ? (reward / risk).toFixed(1) : '–';
   var shares = risk > 0 ? Math.floor((amount * 0.02) / risk) : 0;
   var navGap = D.nav && D.nav.gap_pct;
   var navWarn = navGap && Math.abs(navGap) > 0.5 ? '⚠️ 현재 괴리율 ' + pct(navGap) + ' — NAV 대비 ' + (navGap > 0 ? '고평가' : '저평가') : '';
+
+  var rows = [
+    {label:stopLabel, val: fmt(Math.round(stop)) + '원', cls:'down'},
+    {label:targetLabel, val: fmt(Math.round(target)) + '원', cls:'up'},
+  ];
+  if (target2) rows.push({label:'2차 목표 (가장 강한 저항선)', val: fmt(Math.round(target2)) + '원', cls:'up'});
+  rows.push({label:'손익비 (1차 목표 기준)', val: rr + ':1'});
+  rows.push({label:'리스크/주', val: '-' + fmt(Math.round(risk)) + '원', cls:'down'});
+  rows.push({label:'2% 리스크 기준 주수', val: fmt(shares) + '주'});
+
   document.getElementById('calc-result').innerHTML =
     (navWarn ? '<div style="grid-column:1/-1;padding:8px;background:rgba(240,180,41,0.1);border:1px solid var(--gold);border-radius:6px;color:var(--gold);font-size:12px">' + navWarn + '</div>' : '') +
-    [
-      {label:'손절가 (-7% 또는 ATR×2)', val: fmt(Math.round(stop)) + '원', cls:'down'},
-      {label:'1차 목표 (+10%)', val: fmt(Math.round(target)) + '원', cls:'up'},
-      {label:'손익비', val: rr + ':1'},
-      {label:'리스크/주', val: '-' + fmt(Math.round(risk)) + '원', cls:'down'},
-      {label:'2% 리스크 기준 주수', val: fmt(shares) + '주'},
-      {label:'ATR(14) 기준 손절', val: stopATR ? fmt(Math.round(stopATR)) + '원' : '–'},
-    ].map(function(s) {
+    rows.map(function(s) {
       return '<div class="stat-card"><div class="stat-label">' + s.label + '</div><div class="stat-value ' + (s.cls||'') + '">' + s.val + '</div></div>';
     }).join('');
 }
