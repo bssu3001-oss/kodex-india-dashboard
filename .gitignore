@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+dashboard.html
+data/last_good.json
+.DS_Store
