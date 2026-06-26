@@ -94,6 +94,9 @@
     .header-change { font-size: 15px; }
     /* 넓은 표(백테스트·일별체결 등)는 잘리지 않게 가로 스크롤 */
     .data-table { display: block; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; }
+    /* 차트는 화면 끝까지 (가로 폭 최대 확보) */
+    .panel-chart { margin-left: -10px; margin-right: -10px; border-radius: 0; padding-left: 4px; padding-right: 4px; }
+    #chart-popup { max-width: 88vw; min-width: 0; }
   }
 </style>
 </head>
@@ -130,7 +133,7 @@
     <div id="signal-bt-note"></div>
   </div>
 
-  <div class="panel">
+  <div class="panel panel-chart">
     <div class="panel-title">가격 차트</div>
     <div class="overlay-toggles" id="overlay-toggles">
       <button class="tgl on" data-k="ma5"  onclick="toggleOverlay('ma5')"><span class="tgl-dot"></span>MA5</button>
@@ -503,10 +506,11 @@ function buildChart(period, type) {
   var allCandles = type === 'weekly' ? D.weekly_candles : D.candles;
   if (!allCandles || !allCandles.length) { container.innerHTML = '<p style="color:var(--muted);padding:16px">데이터 없음</p>'; return; }
 
+  var isMobile = window.matchMedia('(max-width: 600px)').matches;
   var chart = LightweightCharts.createChart(container, {
     width: container.clientWidth,
-    height: 480,
-    layout: { background: { color: '#0d1117' }, textColor: '#c9d1d9', fontSize: 12 },
+    height: isMobile ? 360 : 480,
+    layout: { background: { color: '#0d1117' }, textColor: '#c9d1d9', fontSize: isMobile ? 10 : 12 },
     grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
     crosshair: {
       mode: LightweightCharts.CrosshairMode.Magnet,
@@ -515,6 +519,8 @@ function buildChart(period, type) {
     },
     rightPriceScale: { borderColor: '#30363d', scaleMargins: { top: 0.05, bottom: 0.22 } },
     timeScale: { borderColor: '#30363d', timeVisible: false, fixLeftEdge: true, fixRightEdge: true },
+    // 모바일: 가격축을 세로로 끌면 차트가 늘어나는 기능 끔(실수 방지 + 스크럽 제스처와 충돌 방지)
+    handleScale: isMobile ? { axisPressedMouseMove: { time: false, price: false } } : undefined,
   });
   window._chartInst = chart;
 
@@ -577,23 +583,31 @@ function buildChart(period, type) {
     (sma[p] || []).forEach(function(s) { if (dmap[s.date]) dmap[s.date].ma[p] = s.value; });
   });
 
-  // KakaoStock 스타일 팝업 — 클릭/터치 시에만 표시, 다시 클릭하면 사라짐
+  // ===== 팝업 + 차트 인터랙션 =====
   var DAYS = ['일','월','화','수','목','금','토'];
-  function renderPopup(param) {
-    var cd = param.seriesData.get(candleSeries);
-    if (!cd) return false;
+  var dmapCandle = {};
+  allCandles.forEach(function(c){ dmapCandle[c.date] = c; });
 
-    var d = dmap[param.time] || {};
-    var pc = d.pc || cd.open;
+  function _timeToKey(time) {
+    if (typeof time === 'string') return time;
+    if (time && time.year) return time.year + '-' + ('0'+time.month).slice(-2) + '-' + ('0'+time.day).slice(-2);
+    return null;
+  }
+
+  // 캔들 한 개로 팝업 그리기 (데스크탑 클릭 / 모바일 롱프레스 공용)
+  function renderPopupForCandle(c, pointX) {
+    if (!c) return false;
+    var d = dmap[c.date] || {};
+    var pc = d.pc || c.open;
     var pv = d.pv || 1;
     var upC = '#ef5350', dnC = '#1976d2';
     function chgCol(v, ref) { return v >= ref ? upC : dnC; }
     function chgStr(v, ref) { var p = ((v-ref)/ref*100); return (p>=0?'+':'')+p.toFixed(2)+'%'; }
 
-    var dt = new Date(param.time);
-    document.getElementById('pp-date').textContent = param.time.replace(/-/g,'.') + '(' + DAYS[dt.getDay()] + ')';
+    var dt = new Date(c.date);
+    document.getElementById('pp-date').textContent = c.date.replace(/-/g,'.') + '(' + DAYS[dt.getDay()] + ')';
 
-    var rows = [['종',cd.close,pc],['시',cd.open,pc],['고',cd.high,pc],['저',cd.low,pc],['거래량',d.v,pv]];
+    var rows = [['종',c.close,pc],['시',c.open,pc],['고',c.high,pc],['저',c.low,pc],['거래량',c.volume,pv]];
     document.getElementById('pp-ohlcv').innerHTML = rows.map(function(r) {
       var col = chgCol(r[1],r[2]);
       return '<tr><td>'+r[0]+'</td><td style="color:'+col+'">'+fmt(r[1])+'</td><td style="color:'+col+'">'+chgStr(r[1],r[2])+'</td></tr>';
@@ -606,20 +620,75 @@ function buildChart(period, type) {
       return '<tr><td style="color:#8b949e;width:52px">'+r[1]+'</td><td style="text-align:right;padding-right:6px;font-weight:600;color:'+col+'">'+fmt(v)+'</td><td style="text-align:right;font-size:11px;color:'+col+'">'+chgStr(v,pc)+'</td></tr>';
     }).join('');
 
-    var popW = 224, x = param.point.x, cw = container.clientWidth;
-    popup.style.left = (x+20+popW < cw ? x+20 : x-popW-10)+'px';
+    var popW = Math.min(224, container.clientWidth - 12), cw = container.clientWidth;
+    var x = pointX == null ? 20 : pointX;
+    popup.style.left = (x+20+popW < cw ? x+20 : Math.max(4, x-popW-10))+'px';
     popup.style.top = '16px';
     popup.style.display = 'block';
     return true;
   }
 
+  // ---- 데스크탑(마우스): 클릭 토글 ----
   chart.subscribeClick(function(param) {
-    if (!popup) return;
-    // 팝업이 떠 있으면 → 다시 클릭/터치 시 닫기 (토글)
+    if (!popup || isMobile) return;  // 모바일은 아래 롱프레스로 처리
     if (popup.style.display === 'block') { popup.style.display = 'none'; return; }
     if (!param || !param.time || !param.point) { popup.style.display = 'none'; return; }
-    renderPopup(param);
+    renderPopupForCandle(dmapCandle[_timeToKey(param.time)], param.point.x);
   });
+
+  // ---- 모바일: 꾹 누르기(롱프레스)로 팝업, 누른 채 좌우 스와이프로 날짜 이동 ----
+  if (isMobile) {
+    var lpTimer = null, scrubbing = false, sx = 0, sy = 0;
+    var LONG_MS = 350, MOVE_TOL = 12;
+
+    function scrubToClientX(clientX) {
+      var rect = container.getBoundingClientRect();
+      var x = clientX - rect.left;
+      var logical = chart.timeScale().coordinateToLogical(x);
+      if (logical == null) return;
+      var idx = Math.max(0, Math.min(allCandles.length - 1, Math.round(logical)));
+      var c = allCandles[idx];
+      try { chart.setCrosshairPosition(c.close, c.date, candleSeries); } catch(e) {}
+      renderPopupForCandle(c, x);
+    }
+    function endScrub() {
+      if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
+      if (scrubbing) {
+        scrubbing = false;
+        chart.applyOptions({ handleScroll: true });   // 패닝 복구
+        try { chart.clearCrosshairPosition(); } catch(e) {}
+        popup.style.display = 'none';
+      }
+    }
+
+    container.addEventListener('touchstart', function(e) {
+      if (e.touches.length !== 1) { endScrub(); return; }
+      var t = e.touches[0]; sx = t.clientX; sy = t.clientY;
+      if (lpTimer) clearTimeout(lpTimer);
+      lpTimer = setTimeout(function() {
+        scrubbing = true;
+        chart.applyOptions({ handleScroll: false });  // 스크럽 동안 차트 패닝 끔
+        if (navigator.vibrate) { try { navigator.vibrate(12); } catch(e) {} }
+        scrubToClientX(sx);
+      }, LONG_MS);
+    }, { passive: true });
+
+    container.addEventListener('touchmove', function(e) {
+      var t = e.touches[0]; if (!t) return;
+      if (!scrubbing) {
+        // 롱프레스 전에 움직이면 = 패닝/스크롤 의도 → 타이머 취소(차트 기본 동작 유지)
+        if (Math.abs(t.clientX - sx) > MOVE_TOL || Math.abs(t.clientY - sy) > MOVE_TOL) {
+          if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
+        }
+        return;
+      }
+      e.preventDefault();              // 스크럽 중엔 페이지 스크롤 막기
+      scrubToClientX(t.clientX);
+    }, { passive: false });
+
+    container.addEventListener('touchend', endScrub, { passive: true });
+    container.addEventListener('touchcancel', endScrub, { passive: true });
+  }
 
   // 기간에 맞는 초기 뷰 설정
   applyPeriodView(period);
