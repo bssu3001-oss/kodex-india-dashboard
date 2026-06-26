@@ -7,8 +7,10 @@ def evaluate(ind):
     rsi = ind.get("rsi") or 50
     vol_trend = ind["volume"]["trend"]
     vol_vs_ma20 = ind["volume"].get("vs_ma20_pct", 0) or 0
-    dist_sup = ind["sr"].get("dist_to_support_pct") or 999
-    dist_res = ind["sr"].get("dist_to_resistance_pct") or 999
+    _ds = ind["sr"].get("dist_to_support_pct")
+    dist_sup = 999 if _ds is None else _ds
+    _dr = ind["sr"].get("dist_to_resistance_pct")
+    dist_res = 999 if _dr is None else _dr
     nearest_sup = ind["sr"].get("nearest_support")
     nearest_res = ind["sr"].get("nearest_resistance")
     current = ind["position"].get("current", 0)
@@ -67,7 +69,10 @@ def evaluate(ind):
         reasons.append(f"저항선 근접 ({dist_res:.1f}% 아래) — 익절/관망 구간")
 
     # --- Verdict ---
-    if alignment == "역배열":
+    if score <= -2 and alignment == "역배열":
+        verdict = "매도 검토"
+        confidence = "높음"
+    elif alignment == "역배열":
         verdict = "관망"
         confidence = "높음"
     elif score >= 3:
@@ -78,7 +83,7 @@ def evaluate(ind):
         confidence = "보통"
     elif score <= -2:
         verdict = "매도 검토"
-        confidence = "높음" if alignment == "역배열" else "보통"
+        confidence = "보통"
     elif score <= -0.5:
         verdict = "관망"
         confidence = "보통"
@@ -86,14 +91,14 @@ def evaluate(ind):
         verdict = "관망"
         confidence = "낮음"
 
-    # --- Banner ---
+    # --- Banner (역배열 takes highest priority) ---
     banner = None
-    if verdict == "매수 검토" and confidence == "높음":
+    if alignment == "역배열":
+        banner = "⛔ 하락 추세 진행 중 — 신규 매수 보류"
+    elif verdict == "매수 검토" and confidence == "높음":
         banner = f"⚡ 매수 시그널: {', '.join(reasons[:2])}"
     elif rsi >= 75:
         banner = f"⚠️ 단기 과열 주의 (RSI {rsi:.0f}) — 신규 매수 자제"
-    elif alignment == "역배열":
-        banner = "⛔ 하락 추세 진행 중 — 신규 매수 보류"
 
     # --- Scenario ---
     stop_loss = round(current * 0.93, 0)  # default -7%
