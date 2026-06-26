@@ -95,7 +95,7 @@
     /* 넓은 표(백테스트·일별체결 등)는 잘리지 않게 가로 스크롤 */
     .data-table { display: block; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; }
     /* 차트는 화면 끝까지 (가로 폭 최대 확보) */
-    .panel-chart { margin-left: -10px; margin-right: -10px; border-radius: 0; padding-left: 4px; padding-right: 4px; }
+    .panel-chart { margin-left: -10px; margin-right: -10px; border-radius: 0; padding-left: 2px; padding-right: 2px; }
     #chart-popup { max-width: 88vw; min-width: 0; }
   }
 </style>
@@ -511,8 +511,22 @@ function buildChart(period, type) {
       vertLine: { color: '#0969da', width: 1, style: 2, labelBackgroundColor: '#0969da' },
       horzLine: { color: '#0969da', width: 1, style: 2, labelBackgroundColor: '#0969da' },
     },
-    rightPriceScale: { borderColor: '#d0d7de', scaleMargins: { top: 0.05, bottom: 0.22 } },
-    timeScale: { borderColor: '#d0d7de', timeVisible: false, fixLeftEdge: true, fixRightEdge: true },
+    rightPriceScale: { borderColor: '#d0d7de', minimumWidth: 52, scaleMargins: { top: 0.05, bottom: 0.22 } },
+    timeScale: { borderColor: '#d0d7de', timeVisible: false, fixLeftEdge: true, fixRightEdge: true, rightOffset: 3,
+      tickMarkFormatter: function(time, type) {
+        var y, m, day;
+        if (typeof time === 'string') {
+          var p = time.split('-'); y = +p[0]; m = +p[1]; day = +p[2];
+        } else if (typeof time === 'number') {
+          var d = new Date(time * 1000); y = d.getUTCFullYear(); m = d.getUTCMonth()+1; day = d.getUTCDate();
+        } else {
+          y = time.year; m = time.month; day = time.day;
+        }
+        if (type === 0) return y + '년';
+        if (type === 1) return m + '월';
+        return m + '/' + day;
+      }
+    },
     // 모바일: 가격축을 세로로 끌면 차트가 늘어나는 기능 끔(실수 방지 + 스크럽 제스처와 충돌 방지)
     handleScale: isMobile ? { axisPressedMouseMove: { time: false, price: false } } : undefined,
     // 십자선이 '다음 탭까지' 남는 기본동작 → '손가락 떼면 사라짐'으로 (탭 안 해도 바로 차트 이동 가능)
@@ -527,6 +541,7 @@ function buildChart(period, type) {
     wickUpColor: '#c62828', wickDownColor: '#1565c0',
     lastValueVisible: true, priceLineVisible: true,
     priceLineColor: '#0969da', priceLineWidth: 1, priceLineStyle: 2,
+    priceFormat: { type: 'price', precision: 0, minMove: 1 },
   });
   candleSeries.setData(allCandles.map(function(c) {
     return {time: c.date, open: c.open, high: c.high, low: c.low, close: c.close};
