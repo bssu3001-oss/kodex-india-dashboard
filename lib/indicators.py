@@ -30,7 +30,7 @@ def rsi_current(candles, period=14):
         avg_gain = (avg_gain * (period - 1) + gains[i]) / period
         avg_loss = (avg_loss * (period - 1) + losses[i]) / period
     if avg_loss == 0:
-        return 100.0
+        return 100.0 if avg_gain > 0 else 50.0
     rs = avg_gain / avg_loss
     return round(100 - (100 / (1 + rs)), 1)
 
@@ -128,7 +128,7 @@ def support_resistance(candles, lookback=60):
         prices = sorted(set(round(p, 0) for p in prices))
         clusters = [[prices[0]]]
         for p in prices[1:]:
-            if abs(p - clusters[-1][-1]) / clusters[-1][-1] * 100 < threshold_pct:
+            if abs(p - clusters[-1][0]) / clusters[-1][0] * 100 < threshold_pct:
                 clusters[-1].append(p)
             else:
                 clusters.append([p])
