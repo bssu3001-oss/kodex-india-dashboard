@@ -333,6 +333,23 @@ function _addSRLines(candle, arr) {
   });
 }
 
+// 기간 버튼: 차트 재빌드 없이 visible range만 조정
+function applyPeriodView(period) {
+  if (!window._chartInst) return;
+  var ts = window._chartInst.timeScale();
+  if (period === 'ALL') { ts.fitContent(); return; }
+  var days = {'3M': 90, '6M': 180, '1Y': 365}[period] || 180;
+  var end = new Date();
+  var start = new Date();
+  start.setDate(start.getDate() - days);
+  try {
+    ts.setVisibleRange({
+      from: start.toISOString().slice(0, 10),
+      to: end.toISOString().slice(0, 10),
+    });
+  } catch(e) { ts.fitContent(); }
+}
+
 function buildChart(period, type) {
   var container = document.getElementById('chart-container');
   container.innerHTML = '';
@@ -342,8 +359,9 @@ function buildChart(period, type) {
   if (window._chartInst) { try { window._chartInst.remove(); } catch(e) {} window._chartInst = null; }
   if (window._chartResize) { window.removeEventListener('resize', window._chartResize); window._chartResize = null; }
 
-  var filtered = getFilteredCandles(period, type);
-  if (!filtered.length) { container.innerHTML = '<p style="color:var(--muted);padding:16px">데이터 없음</p>'; return; }
+  // 항상 전체 데이터 사용 (기간 버튼은 뷰만 조정)
+  var allCandles = type === 'weekly' ? D.weekly_candles : D.candles;
+  if (!allCandles || !allCandles.length) { container.innerHTML = '<p style="color:var(--muted);padding:16px">데이터 없음</p>'; return; }
 
   var chart = LightweightCharts.createChart(container, {
     width: container.clientWidth,
@@ -360,7 +378,7 @@ function buildChart(period, type) {
   });
   window._chartInst = chart;
 
-  // 캔들스틱
+  // 캔들스틱 — 전체 데이터
   var candleSeries = chart.addCandlestickSeries({
     upColor: '#ef5350', downColor: '#1976d2',
     borderUpColor: '#ef5350', borderDownColor: '#1976d2',
@@ -368,13 +386,11 @@ function buildChart(period, type) {
     lastValueVisible: true, priceLineVisible: true,
     priceLineColor: '#58a6ff', priceLineWidth: 1, priceLineStyle: 2,
   });
-  candleSeries.setData(filtered.map(function(c) {
+  candleSeries.setData(allCandles.map(function(c) {
     return {time: c.date, open: c.open, high: c.high, low: c.low, close: c.close};
   }));
 
-  // 이동평균선
-  var dateSet = {};
-  filtered.forEach(function(c) { dateSet[c.date] = true; });
+  // 이동평균선 — 전체 데이터
   var sma = D.indicators.sma || {};
   var maRefs = {};
   ['5','20','60','120'].forEach(function(p) {
@@ -385,8 +401,7 @@ function buildChart(period, type) {
       crosshairMarkerVisible: false, title: 'MA'+p,
       visible: window._tog['ma'+p],
     });
-    var data = sma[p].filter(function(d) { return dateSet[d.date]; }).map(function(d) { return {time:d.date, value:d.value}; });
-    if (data.length) s.setData(data);
+    s.setData(sma[p].map(function(d) { return {time:d.date, value:d.value}; }));
     maRefs[p] = s;
   });
 
@@ -394,13 +409,13 @@ function buildChart(period, type) {
   var srLines = [];
   if (window._tog.sr) _addSRLines(candleSeries, srLines);
 
-  // 거래량
+  // 거래량 — 전체 데이터
   var volSeries = chart.addHistogramSeries({
     priceFormat: { type: 'volume' }, priceScaleId: 'vol',
     lastValueVisible: false, visible: window._tog.vol,
   });
   chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 }, visible: false });
-  volSeries.setData(filtered.map(function(c) {
+  volSeries.setData(allCandles.map(function(c) {
     return {time: c.date, value: c.volume, color: c.close >= c.open ? 'rgba(239,83,80,0.45)' : 'rgba(25,118,210,0.45)'};
   }));
 
@@ -408,16 +423,13 @@ function buildChart(period, type) {
   window._chartRefs = { candle: candleSeries, vol: volSeries, srLines: srLines,
     ma5: maRefs['5'], ma20: maRefs['20'], ma60: maRefs['60'], ma120: maRefs['120'] };
 
-  // 오른쪽(최신) 고정, 전체 데이터 표시
-  chart.timeScale().fitContent();
-
-  // 팝업용 날짜-데이터 맵 (전일 종가·거래량 포함)
+  // 팝업용 날짜-데이터 맵
   var dmap = {};
-  filtered.forEach(function(c, i) {
+  allCandles.forEach(function(c, i) {
     dmap[c.date] = {
       o: c.open, h: c.high, l: c.low, c: c.close, v: c.volume,
-      pc: i > 0 ? filtered[i-1].close : c.open,
-      pv: i > 0 ? filtered[i-1].volume : c.volume,
+      pc: i > 0 ? allCandles[i-1].close : c.open,
+      pv: i > 0 ? allCandles[i-1].volume : c.volume,
       ma: {}
     };
   });
@@ -440,45 +452,30 @@ function buildChart(period, type) {
     function chgCol(v, ref) { return v >= ref ? upC : dnC; }
     function chgStr(v, ref) { var p = ((v-ref)/ref*100); return (p>=0?'+':'')+p.toFixed(2)+'%'; }
 
-    // 날짜 (요일 포함)
     var dt = new Date(param.time);
     document.getElementById('pp-date').textContent = param.time.replace(/-/g,'.') + '(' + DAYS[dt.getDay()] + ')';
 
-    // OHLCV 행
-    var rows = [
-      ['종', cd.close, pc],
-      ['시', cd.open,  pc],
-      ['고', cd.high,  pc],
-      ['저', cd.low,   pc],
-      ['거래량', d.v, pv],
-    ];
+    var rows = [['종',cd.close,pc],['시',cd.open,pc],['고',cd.high,pc],['저',cd.low,pc],['거래량',d.v,pv]];
     document.getElementById('pp-ohlcv').innerHTML = rows.map(function(r) {
-      var col = chgCol(r[1], r[2]);
-      var val = r[0] === '거래량' ? fmt(r[1]) : fmt(r[1]);
-      return '<tr><td>' + r[0] + '</td>' +
-        '<td style="color:' + col + '">' + val + '</td>' +
-        '<td style="color:' + col + '">' + chgStr(r[1], r[2]) + '</td></tr>';
+      var col = chgCol(r[1],r[2]);
+      return '<tr><td>'+r[0]+'</td><td style="color:'+col+'">'+fmt(r[1])+'</td><td style="color:'+col+'">'+chgStr(r[1],r[2])+'</td></tr>';
     }).join('');
 
-    // MA 행
     var maRows = [['5','이평 5'],['20','이평 20'],['60','이평 60'],['120','이평 120']];
     document.getElementById('pp-ma').innerHTML = maRows.map(function(r) {
-      var v = d.ma && d.ma[r[0]];
-      if (!v) return '';
-      var col = chgCol(v, pc);
-      return '<tr><td style="color:#8b949e;width:52px">' + r[1] + '</td>' +
-        '<td style="text-align:right;padding-right:6px;font-weight:600;color:' + col + '">' + fmt(v) + '</td>' +
-        '<td style="text-align:right;font-size:11px;color:' + col + '">' + chgStr(v, pc) + '</td></tr>';
+      var v = d.ma && d.ma[r[0]]; if (!v) return '';
+      var col = chgCol(v,pc);
+      return '<tr><td style="color:#8b949e;width:52px">'+r[1]+'</td><td style="text-align:right;padding-right:6px;font-weight:600;color:'+col+'">'+fmt(v)+'</td><td style="text-align:right;font-size:11px;color:'+col+'">'+chgStr(v,pc)+'</td></tr>';
     }).join('');
 
-    // 팝업 위치 (오른쪽에 공간 있으면 오른쪽, 없으면 왼쪽)
-    var popW = 224;
-    var x = param.point.x;
-    var cw = container.clientWidth;
-    popup.style.left = (x + 20 + popW < cw ? x + 20 : x - popW - 10) + 'px';
+    var popW = 224, x = param.point.x, cw = container.clientWidth;
+    popup.style.left = (x+20+popW < cw ? x+20 : x-popW-10)+'px';
     popup.style.top = '16px';
     popup.style.display = 'block';
   });
+
+  // 기간에 맞는 초기 뷰 설정
+  applyPeriodView(period);
 
   // 리사이즈
   window._chartResize = function() { chart.applyOptions({ width: container.clientWidth }); };
@@ -491,7 +488,7 @@ function setChartPeriod(p, btn) {
     if (['3개월','6개월','1년','전체'].indexOf(b.textContent) !== -1) b.classList.remove('active');
   });
   if (btn) btn.classList.add('active');
-  buildChart(currentPeriod, currentType);
+  applyPeriodView(p); // 차트 재빌드 없이 뷰만 변경
 }
 function setChartType(t, btn) {
   currentType = t;
@@ -499,7 +496,7 @@ function setChartType(t, btn) {
     if (['일봉','주봉'].indexOf(b.textContent) !== -1) b.classList.remove('active');
   });
   if (btn) btn.classList.add('active');
-  buildChart(currentPeriod, currentType);
+  buildChart(currentPeriod, currentType); // 데이터 소스가 달라지므로 재빌드
 }
 
 function renderTrend() {

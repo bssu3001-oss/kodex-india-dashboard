@@ -174,8 +174,16 @@ def high_low_position(candles, quote=None):
     current = (quote["price"] if quote and quote.get("price") else candles[-1]["close"])
     recent_high = max(c["high"] for c in candles[-60:]) if len(candles) >= 60 else max(c["high"] for c in candles)
     recent_low = min(c["low"] for c in candles[-60:]) if len(candles) >= 60 else min(c["low"] for c in candles)
-    high_52w = max(c["high"] for c in candles)
-    low_52w = min(c["low"] for c in candles)
+
+    # 52주 고/저: API 값 우선 (정확한 52주), 없으면 최근 252 거래일로 근사
+    if quote and quote.get("high_52w") and quote.get("low_52w"):
+        high_52w = float(quote["high_52w"])
+        low_52w = float(quote["low_52w"])
+    else:
+        w52 = candles[-252:] if len(candles) >= 252 else candles
+        high_52w = max(c["high"] for c in w52)
+        low_52w = min(c["low"] for c in w52)
+
     return {
         "current": current,
         "from_60d_high_pct": round((current - recent_high) / recent_high * 100, 2),

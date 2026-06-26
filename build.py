@@ -38,7 +38,7 @@ def build(open_browser=True):
     print("📊 KODEX 인도Nifty50 대시보드 생성 중...")
 
     # Fetch
-    candles = fetch_candles(days=550)
+    candles = fetch_candles(days=1300)
     if not candles or len(candles) < 30:
         print("⚠️  실시간 데이터 수신 실패 — 캐시 사용")
         cached = _load_cache()
