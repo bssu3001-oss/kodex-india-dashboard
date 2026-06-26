@@ -39,8 +39,8 @@
   .chart-controls { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
   .btn { background: var(--bg); border: 1px solid var(--border); color: var(--muted); padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; }
   .btn.active { background: var(--neutral); border-color: var(--neutral); color: #000; font-weight: 700; }
-  #chart-container { width: 100%; height: 400px; }
-  #volume-container { width: 100%; height: 100px; margin-top: 4px; }
+  #chart-container { width: 100%; }
+  #volume-container { display: none; }
   .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
   .data-table th { color: var(--muted); font-weight: 500; padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: right; }
   .data-table th:first-child { text-align: left; }
@@ -108,8 +108,9 @@
       <button class="btn active" onclick="setChartType('daily',this)">일봉</button>
       <button class="btn" onclick="setChartType('weekly',this)">주봉</button>
     </div>
-    <div id="chart-container"></div>
-    <div id="volume-container"></div>
+    <div id="chart-tooltip" style="height:22px;font-size:12px;padding:2px 0;margin-bottom:4px;white-space:nowrap;overflow:hidden"></div>
+    <div id="chart-container" style="height:520px"></div>
+    <div id="volume-container" style="display:none"></div>
   </div>
 
   <div class="panel" id="panel-trend">
@@ -274,65 +275,121 @@ function getFilteredCandles(period, type) {
 
 function buildChart(period, type) {
   var container = document.getElementById('chart-container');
-  var volContainer = document.getElementById('volume-container');
   container.innerHTML = '';
-  volContainer.innerHTML = '';
+
+  // Cleanup previous chart instance and resize handler
+  if (window._chartInst) { try { window._chartInst.remove(); } catch(e) {} window._chartInst = null; }
+  if (window._chartResize) { window.removeEventListener('resize', window._chartResize); window._chartResize = null; }
+
   var filtered = getFilteredCandles(period, type);
   if (!filtered.length) { container.innerHTML = '<p style="color:var(--muted);padding:16px">데이터 없음</p>'; return; }
+
   var chart = LightweightCharts.createChart(container, {
-    width: container.clientWidth, height: 400,
-    layout: { background: { color: '#0d1117' }, textColor: '#e6edf3' },
+    width: container.clientWidth,
+    height: 520,
+    layout: { background: { color: '#0d1117' }, textColor: '#c9d1d9', fontSize: 12 },
     grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
-    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    crosshair: {
+      mode: LightweightCharts.CrosshairMode.Normal,
+      vertLine: { color: '#58a6ff', width: 1, style: 0, labelBackgroundColor: '#1f6feb' },
+      horzLine: { color: '#58a6ff', width: 1, style: 0, labelBackgroundColor: '#1f6feb' },
+    },
     rightPriceScale: { borderColor: '#30363d' },
-    timeScale: { borderColor: '#30363d', timeVisible: true },
+    timeScale: { borderColor: '#30363d', timeVisible: true, fixLeftEdge: true },
   });
+  window._chartInst = chart;
+
+  // 캔들스틱 (pane 0)
   var candleSeries = chart.addCandlestickSeries({
+    pane: 0,
     upColor: '#ef5350', downColor: '#1976d2',
     borderUpColor: '#ef5350', borderDownColor: '#1976d2',
     wickUpColor: '#ef5350', wickDownColor: '#1976d2',
+    lastValueVisible: true,
+    priceLineVisible: true,
+    priceLineColor: '#58a6ff',
+    priceLineWidth: 1,
+    priceLineStyle: 2,
   });
   candleSeries.setData(filtered.map(function(c) {
     return {time: c.date, open: c.open, high: c.high, low: c.low, close: c.close};
   }));
+
+  // 이동평균선 (pane 0)
   var dateSet = {};
   filtered.forEach(function(c) { dateSet[c.date] = true; });
   var sma = D.indicators.sma || {};
-  Object.keys(sma).forEach(function(p) {
-    var series = chart.addLineSeries({
-      color: MA_COLORS[p], lineWidth: 1, priceLineVisible: false, lastValueVisible: false,
+  ['5','20','60','120'].forEach(function(p) {
+    if (!sma[p] || !sma[p].length) return;
+    var maSeries = chart.addLineSeries({
+      pane: 0,
+      color: MA_COLORS[p], lineWidth: 1,
+      priceLineVisible: false, lastValueVisible: true,
+      crosshairMarkerVisible: false,
+      title: 'MA' + p,
     });
-    var data = (sma[p] || []).filter(function(s) { return dateSet[s.date]; }).map(function(s) {
+    var data = sma[p].filter(function(s) { return dateSet[s.date]; }).map(function(s) {
       return {time: s.date, value: s.value};
     });
-    if (data.length) series.setData(data);
+    if (data.length) maSeries.setData(data);
   });
+
+  // 지지/저항선 — createPriceLine (축 레이블 포함)
   var sr = D.indicators.sr || {};
-  var firstDate = filtered[0].date;
-  var lastDate = filtered[filtered.length - 1].date;
-  (sr.supports || []).forEach(function(level) {
-    var ls = chart.addLineSeries({color: '#26a69a', lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false});
-    ls.setData([{time: firstDate, value: level}, {time: lastDate, value: level}]);
+  (sr.supports || []).forEach(function(level, i) {
+    candleSeries.createPriceLine({
+      price: level, color: 'rgba(38,166,154,0.8)', lineWidth: 1, lineStyle: 2,
+      axisLabelVisible: true, title: i === 0 ? '지지' : '',
+    });
   });
-  (sr.resistances || []).forEach(function(level) {
-    var ls = chart.addLineSeries({color: '#ef5350', lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false});
-    ls.setData([{time: firstDate, value: level}, {time: lastDate, value: level}]);
+  (sr.resistances || []).forEach(function(level, i) {
+    candleSeries.createPriceLine({
+      price: level, color: 'rgba(239,83,80,0.8)', lineWidth: 1, lineStyle: 2,
+      axisLabelVisible: true, title: i === 0 ? '저항' : '',
+    });
   });
-  var volChart = LightweightCharts.createChart(volContainer, {
-    width: volContainer.clientWidth, height: 100,
-    layout: { background: { color: '#0d1117' }, textColor: '#e6edf3' },
-    grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
-    rightPriceScale: { borderColor: '#30363d' },
-    timeScale: { borderColor: '#30363d', visible: false },
+
+  // 거래량 히스토그램 (pane 1)
+  var volSeries = chart.addHistogramSeries({
+    pane: 1,
+    priceFormat: { type: 'volume' },
+    priceScaleId: '',
+    scaleMargins: { top: 0.1, bottom: 0 },
+    lastValueVisible: false,
   });
-  var volSeries = volChart.addHistogramSeries({ priceFormat: { type: 'volume' } });
   volSeries.setData(filtered.map(function(c) {
-    return {time: c.date, value: c.volume, color: c.close >= c.open ? 'rgba(239,83,80,0.5)' : 'rgba(25,118,210,0.5)'};
+    return {time: c.date, value: c.volume, color: c.close >= c.open ? 'rgba(239,83,80,0.55)' : 'rgba(25,118,210,0.55)'};
   }));
-  window.addEventListener('resize', function() {
-    chart.applyOptions({ width: container.clientWidth });
-    volChart.applyOptions({ width: volContainer.clientWidth });
+
+  // 데이터 전체가 화면에 맞게
+  chart.timeScale().fitContent();
+
+  // OHLCV 툴팁
+  var tooltip = document.getElementById('chart-tooltip');
+  chart.subscribeCrosshairMove(function(param) {
+    if (!tooltip) return;
+    if (!param || !param.time || !param.seriesData || !param.seriesData.size) {
+      tooltip.innerHTML = ''; return;
+    }
+    var cd = param.seriesData.get(candleSeries);
+    if (!cd) { tooltip.innerHTML = ''; return; }
+    var chg = cd.close - cd.open;
+    var chgPct = (chg / cd.open * 100).toFixed(2);
+    var col = chg >= 0 ? 'var(--up)' : 'var(--down)';
+    var vd = param.seriesData.get(volSeries);
+    tooltip.innerHTML =
+      '<span style="color:var(--muted);margin-right:8px">' + param.time + '</span>' +
+      'O:<b style="color:' + col + '">' + fmt(cd.open) + '</b> ' +
+      'H:<b style="color:var(--up)">' + fmt(cd.high) + '</b> ' +
+      'L:<b style="color:var(--down)">' + fmt(cd.low) + '</b> ' +
+      'C:<b style="color:' + col + '">' + fmt(cd.close) + '</b> ' +
+      '<b style="color:' + col + '">(' + (chg >= 0 ? '+' : '') + fmt(chg) + ' ' + (chg >= 0 ? '+' : '') + chgPct + '%)</b>' +
+      (vd ? ' <span style="color:var(--muted)">  거래량 ' + fmt(vd.value) + '</span>' : '');
   });
+
+  // 리사이즈
+  window._chartResize = function() { chart.applyOptions({ width: container.clientWidth }); };
+  window.addEventListener('resize', window._chartResize);
 }
 
 function setChartPeriod(p, btn) {
