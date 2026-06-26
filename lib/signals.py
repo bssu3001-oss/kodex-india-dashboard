@@ -7,13 +7,13 @@ def evaluate(ind):
     rsi = ind.get("rsi") or 50
     vol_trend = ind["volume"]["trend"]
     vol_vs_ma20 = ind["volume"].get("vs_ma20_pct", 0) or 0
-    _ds = ind["sr"].get("dist_to_support_pct")
-    dist_sup = 999 if _ds is None else _ds
-    _dr = ind["sr"].get("dist_to_resistance_pct")
-    dist_res = 999 if _dr is None else _dr
     nearest_sup = ind["sr"].get("nearest_support")
     nearest_res = ind["sr"].get("nearest_resistance")
+    strongest_sup = ind["sr"].get("strongest_support")
+    strongest_res = ind["sr"].get("strongest_resistance")
     current = ind["position"].get("current", 0)
+    dist_sup = round((current - strongest_sup) / current * 100, 2) if (strongest_sup and current) else 999
+    dist_res = round((strongest_res - current) / current * 100, 2) if (strongest_res and current) else 999
     golden = ind["crosses"].get("golden")
     dead = ind["crosses"].get("dead")
     atr = ind.get("atr") or (current * 0.015)
