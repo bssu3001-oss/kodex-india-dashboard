@@ -31,8 +31,16 @@ class TestEvaluate(unittest.TestCase):
         result = evaluate(make_ind(alignment="정배열", rsi=55, vol_trend="증가"))
         self.assertIn(result["verdict"], ["매수 검토"])
 
-    def test_downtrend_gives_watch(self):
+    def test_downtrend_never_buys(self):
+        # 역배열은 어떤 경우에도 "매수 검토"를 내면 안 됨
         result = evaluate(make_ind(alignment="역배열", rsi=45))
+        self.assertNotEqual(result["verdict"], "매수 검토")
+
+    def test_mild_downtrend_gives_watch(self):
+        # 역배열 + 골든크로스 없음 → score=-3 → 관망
+        ind = make_ind(alignment="역배열", rsi=55, vol_trend="증가")
+        ind["crosses"] = {"golden": None, "dead": None}
+        result = evaluate(ind)
         self.assertEqual(result["verdict"], "관망")
 
     def test_overbought_triggers_caution(self):
