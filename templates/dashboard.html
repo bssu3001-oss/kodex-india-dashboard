@@ -522,9 +522,9 @@ function buildChart(period, type) {
 
   // 캔들스틱 — 전체 데이터
   var candleSeries = chart.addCandlestickSeries({
-    upColor: '#ef5350', downColor: '#1976d2',
-    borderUpColor: '#ef5350', borderDownColor: '#1976d2',
-    wickUpColor: '#ef5350', wickDownColor: '#1976d2',
+    upColor: '#ff5b6a', downColor: '#3d9bff',
+    borderUpColor: '#ff7480', borderDownColor: '#5fb0ff',
+    wickUpColor: '#ff7480', wickDownColor: '#5fb0ff',
     lastValueVisible: true, priceLineVisible: true,
     priceLineColor: '#58a6ff', priceLineWidth: 1, priceLineStyle: 2,
   });
@@ -558,7 +558,7 @@ function buildChart(period, type) {
   });
   chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 }, visible: false });
   volSeries.setData(allCandles.map(function(c) {
-    return {time: c.date, value: c.volume, color: c.close >= c.open ? 'rgba(239,83,80,0.45)' : 'rgba(25,118,210,0.45)'};
+    return {time: c.date, value: c.volume, color: c.close >= c.open ? 'rgba(255,91,106,0.5)' : 'rgba(61,155,255,0.5)'};
   }));
 
   // 시리즈 참조 저장 (토글용)
