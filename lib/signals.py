@@ -13,7 +13,7 @@ def evaluate(ind):
     strongest_res = ind["sr"].get("strongest_resistance")
     current = ind["position"].get("current", 0)
     dist_sup = round((current - strongest_sup) / current * 100, 2) if (strongest_sup and current) else 999
-    dist_res = round((strongest_res - current) / current * 100, 2) if (strongest_res and current) else 999
+    dist_res = round((nearest_res - current) / current * 100, 2) if (nearest_res and current) else 999
     golden = ind["crosses"].get("golden")
     dead = ind["crosses"].get("dead")
     atr = ind.get("atr") or (current * 0.015)
