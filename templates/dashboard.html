@@ -286,7 +286,7 @@ function buildChart(period, type) {
 
   var chart = LightweightCharts.createChart(container, {
     width: container.clientWidth,
-    height: 520,
+    height: 480,
     layout: { background: { color: '#0d1117' }, textColor: '#c9d1d9', fontSize: 12 },
     grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
     crosshair: {
@@ -294,14 +294,16 @@ function buildChart(period, type) {
       vertLine: { color: '#58a6ff', width: 1, style: 0, labelBackgroundColor: '#1f6feb' },
       horzLine: { color: '#58a6ff', width: 1, style: 0, labelBackgroundColor: '#1f6feb' },
     },
-    rightPriceScale: { borderColor: '#30363d' },
+    rightPriceScale: {
+      borderColor: '#30363d',
+      scaleMargins: { top: 0.05, bottom: 0.22 },
+    },
     timeScale: { borderColor: '#30363d', timeVisible: true, fixLeftEdge: true },
   });
   window._chartInst = chart;
 
-  // 캔들스틱 (pane 0)
+  // 캔들스틱
   var candleSeries = chart.addCandlestickSeries({
-    pane: 0,
     upColor: '#ef5350', downColor: '#1976d2',
     borderUpColor: '#ef5350', borderDownColor: '#1976d2',
     wickUpColor: '#ef5350', wickDownColor: '#1976d2',
@@ -315,14 +317,13 @@ function buildChart(period, type) {
     return {time: c.date, open: c.open, high: c.high, low: c.low, close: c.close};
   }));
 
-  // 이동평균선 (pane 0)
+  // 이동평균선
   var dateSet = {};
   filtered.forEach(function(c) { dateSet[c.date] = true; });
   var sma = D.indicators.sma || {};
   ['5','20','60','120'].forEach(function(p) {
     if (!sma[p] || !sma[p].length) return;
     var maSeries = chart.addLineSeries({
-      pane: 0,
       color: MA_COLORS[p], lineWidth: 1,
       priceLineVisible: false, lastValueVisible: true,
       crosshairMarkerVisible: false,
@@ -338,27 +339,29 @@ function buildChart(period, type) {
   var sr = D.indicators.sr || {};
   (sr.supports || []).forEach(function(level, i) {
     candleSeries.createPriceLine({
-      price: level, color: 'rgba(38,166,154,0.8)', lineWidth: 1, lineStyle: 2,
+      price: level, color: 'rgba(38,166,154,0.85)', lineWidth: 1, lineStyle: 2,
       axisLabelVisible: true, title: i === 0 ? '지지' : '',
     });
   });
   (sr.resistances || []).forEach(function(level, i) {
     candleSeries.createPriceLine({
-      price: level, color: 'rgba(239,83,80,0.8)', lineWidth: 1, lineStyle: 2,
+      price: level, color: 'rgba(239,83,80,0.85)', lineWidth: 1, lineStyle: 2,
       axisLabelVisible: true, title: i === 0 ? '저항' : '',
     });
   });
 
-  // 거래량 히스토그램 (pane 1)
+  // 거래량 히스토그램 — 독립 priceScaleId로 캔들 아래 하단 20%에만 표시
   var volSeries = chart.addHistogramSeries({
-    pane: 1,
     priceFormat: { type: 'volume' },
-    priceScaleId: '',
-    scaleMargins: { top: 0.1, bottom: 0 },
+    priceScaleId: 'vol',
     lastValueVisible: false,
   });
+  chart.priceScale('vol').applyOptions({
+    scaleMargins: { top: 0.8, bottom: 0 },
+    visible: false,
+  });
   volSeries.setData(filtered.map(function(c) {
-    return {time: c.date, value: c.volume, color: c.close >= c.open ? 'rgba(239,83,80,0.55)' : 'rgba(25,118,210,0.55)'};
+    return {time: c.date, value: c.volume, color: c.close >= c.open ? 'rgba(239,83,80,0.45)' : 'rgba(25,118,210,0.45)'};
   }));
 
   // 데이터 전체가 화면에 맞게
