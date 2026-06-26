@@ -453,27 +453,21 @@ function toggleOverlay(key) {
 }
 
 function _addSRLines(candle, arr) {
+  // 차트엔 핵심 선만 그림: 가장 강한 지지 + 1차 목표(가까운 저항) + 2차 목표(가장 강한 저항).
+  // 전체 지지·저항 목록은 아래 '지지선·저항선' 패널에 그대로 있음.
   var sr = D.indicators.sr || {};
-  var strong = sr.strongest_support;
-  (sr.supports || []).forEach(function(level, i) {
-    var isStrong = strong != null && Math.round(level) === Math.round(strong);
+  var GOLD = 'rgba(247,201,72,0.95)', RED = 'rgba(239,83,80,0.9)';
+  function add(price, color, title) {
+    if (price == null) return;
     arr.push(candle.createPriceLine({
-      price: level,
-      color: isStrong ? 'rgba(247,201,72,0.95)' : 'rgba(38,166,154,0.85)',
-      lineWidth: isStrong ? 2 : 1, lineStyle: 2, axisLabelVisible: false,
-      title: isStrong ? '핵심지지' : (i === 0 ? '지지' : '')
+      price: price, color: color, lineWidth: 2, lineStyle: 2,
+      axisLabelVisible: false, title: title
     }));
-  });
-  var strongR = sr.strongest_resistance;
-  (sr.resistances || []).forEach(function(level, i) {
-    var isStrongR = strongR != null && Math.round(level) === Math.round(strongR);
-    arr.push(candle.createPriceLine({
-      price: level,
-      color: isStrongR ? 'rgba(247,201,72,0.95)' : 'rgba(239,83,80,0.85)',
-      lineWidth: isStrongR ? 2 : 1, lineStyle: 2, axisLabelVisible: false,
-      title: isStrongR ? '핵심저항' : (i === 0 ? '저항' : '')
-    }));
-  });
+  }
+  add(sr.strongest_support, GOLD, '핵심지지');
+  var t1 = sr.nearest_resistance, t2 = sr.strongest_resistance;
+  add(t1, RED, '1차목표');
+  if (t2 != null && (t1 == null || Math.round(t2) !== Math.round(t1))) add(t2, GOLD, '2차목표');
 }
 
 // 기간 버튼: 차트 재빌드 없이 visible range만 조정
