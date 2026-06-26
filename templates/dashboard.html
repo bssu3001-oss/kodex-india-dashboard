@@ -437,13 +437,11 @@ function buildChart(period, type) {
     (sma[p] || []).forEach(function(s) { if (dmap[s.date]) dmap[s.date].ma[p] = s.value; });
   });
 
-  // KakaoStock 스타일 플로팅 팝업
+  // KakaoStock 스타일 팝업 — 클릭/터치 시에만 표시, 다시 클릭하면 사라짐
   var DAYS = ['일','월','화','수','목','금','토'];
-  chart.subscribeCrosshairMove(function(param) {
-    if (!popup) return;
-    if (!param || !param.time || !param.point) { popup.style.display = 'none'; return; }
+  function renderPopup(param) {
     var cd = param.seriesData.get(candleSeries);
-    if (!cd) { popup.style.display = 'none'; return; }
+    if (!cd) return false;
 
     var d = dmap[param.time] || {};
     var pc = d.pc || cd.open;
@@ -472,6 +470,15 @@ function buildChart(period, type) {
     popup.style.left = (x+20+popW < cw ? x+20 : x-popW-10)+'px';
     popup.style.top = '16px';
     popup.style.display = 'block';
+    return true;
+  }
+
+  chart.subscribeClick(function(param) {
+    if (!popup) return;
+    // 팝업이 떠 있으면 → 다시 클릭/터치 시 닫기 (토글)
+    if (popup.style.display === 'block') { popup.style.display = 'none'; return; }
+    if (!param || !param.time || !param.point) { popup.style.display = 'none'; return; }
+    renderPopup(param);
   });
 
   // 기간에 맞는 초기 뷰 설정
