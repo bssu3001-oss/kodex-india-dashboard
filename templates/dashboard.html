@@ -325,8 +325,15 @@ function toggleOverlay(key) {
 
 function _addSRLines(candle, arr) {
   var sr = D.indicators.sr || {};
+  var strong = sr.strongest_support;
   (sr.supports || []).forEach(function(level, i) {
-    arr.push(candle.createPriceLine({price:level, color:'rgba(38,166,154,0.85)', lineWidth:1, lineStyle:2, axisLabelVisible:false, title: i===0?'지지':''}));
+    var isStrong = strong != null && Math.round(level) === Math.round(strong);
+    arr.push(candle.createPriceLine({
+      price: level,
+      color: isStrong ? 'rgba(247,201,72,0.95)' : 'rgba(38,166,154,0.85)',
+      lineWidth: isStrong ? 2 : 1, lineStyle: 2, axisLabelVisible: false,
+      title: isStrong ? '핵심지지' : (i === 0 ? '지지' : '')
+    }));
   });
   (sr.resistances || []).forEach(function(level, i) {
     arr.push(candle.createPriceLine({price:level, color:'rgba(239,83,80,0.85)', lineWidth:1, lineStyle:2, axisLabelVisible:false, title: i===0?'저항':''}));
@@ -555,11 +562,18 @@ function renderTrend() {
 
 function renderSR() {
   var sr = D.indicators.sr || {};
+  var strong = sr.strongest_support;
+  var metaByLevel = {};
+  (sr.support_meta || []).forEach(function(m) { metaByLevel[Math.round(m.level)] = m; });
   var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">';
   html += '<div><div style="color:var(--green);font-weight:600;margin-bottom:6px">지지선</div>';
   (sr.supports || []).forEach(function(s, i) {
-    html += '<div style="padding:4px 0;' + (i === 0 ? 'font-weight:700;font-size:15px' : '') + '">' + fmt(s) + '원';
+    var isStrong = strong != null && Math.round(s) === Math.round(strong);
+    var m = metaByLevel[Math.round(s)] || {};
+    var col = isStrong ? '#f7c948' : '';
+    html += '<div style="padding:4px 0;' + (i === 0 ? 'font-weight:700;font-size:15px;' : '') + (col ? 'color:' + col + ';' : '') + '">' + fmt(s) + '원';
     if (i === 0 && sr.dist_to_support_pct) html += ' <span style="color:var(--muted);font-size:12px">(-' + sr.dist_to_support_pct + '%)</span>';
+    if (isStrong) html += ' <span style="font-size:11px;color:#f7c948">★핵심 지지 (테스트 ' + (m.touches || 0) + '회' + (m.confluence ? ', 이평선 겹침' : '') + ')</span>';
     html += '</div>';
   });
   if (!sr.supports || !sr.supports.length) html += '<span style="color:var(--muted)">–</span>';
@@ -608,15 +622,22 @@ function renderInsights() {
   var sig = D.signal || {};
   document.getElementById('insight-text').textContent = sig.insight || '–';
   var sc = sig.scenario || {};
-  document.getElementById('scenario-grid').innerHTML = [
-    {label:'진입 후보가', val: fmt(sc.entry) + '원'},
-    {label:'손절선', val: fmt(sc.stop_loss) + '원', cls:'down'},
-    {label:'1차 목표', val: fmt(sc.target) + '원', cls:'up'},
-    {label:'2차 목표', val: fmt(sc.target2) + '원', cls:'up'},
-    {label:'손익비', val: sc.risk_reward ? sc.risk_reward + ':1' : '–'},
-    {label:'메모', val: sc.note || '–'},
-  ].map(function(s) {
-    return '<div class="stat-card"><div class="stat-label">' + s.label + '</div><div class="stat-value ' + (s.cls||'') + '">' + s.val + '</div></div>';
+  var entries = sc.entries || (sc.entry ? [sc.entry] : []);
+  var ord = ['1차 진입', '2차 진입', '3차 진입', '4차 진입'];
+  var cards = entries.map(function(e, i) {
+    var isStrong = sc.strongest_support != null && Math.round(e) === Math.round(sc.strongest_support);
+    return {label: ord[i] || ((i + 1) + '차 진입'), val: fmt(e) + '원', strong: isStrong};
+  });
+  cards.push({label:'균등 평단', val: fmt(sc.avg_entry || sc.entry) + '원'});
+  cards.push({label:'추세이탈선(손절)', val: fmt(sc.stop_loss) + '원', cls:'down'});
+  cards.push({label:'1차 목표 (저항선)', val: fmt(sc.target) + '원', cls:'up'});
+  cards.push({label:'2차 목표', val: fmt(sc.target2) + '원', cls:'up'});
+  cards.push({label:'손익비 (평단 기준)', val: sc.risk_reward ? sc.risk_reward + ':1' : '–'});
+  cards.push({label:'메모', val: sc.note || '–'});
+  document.getElementById('scenario-grid').innerHTML = cards.map(function(s) {
+    var border = s.strong ? 'border:1px solid #f7c948;' : '';
+    var badge = s.strong ? ' <span style="font-size:10px;color:#f7c948">★핵심</span>' : '';
+    return '<div class="stat-card" style="' + border + '"><div class="stat-label">' + s.label + badge + '</div><div class="stat-value ' + (s.cls||'') + '">' + s.val + '</div></div>';
   }).join('');
 }
 

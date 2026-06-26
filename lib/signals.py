@@ -101,26 +101,39 @@ def evaluate(ind):
     elif rsi >= 75:
         banner = f"⚠️ 단기 과열 주의 (RSI {rsi:.0f}) — 신규 매수 자제"
 
-    # --- Scenario ---
-    # 진입 후보가 기준으로 손절·목표·손익비를 일관되게 계산 (지지선 근처 대기 매수 플랜)
-    entry = round(nearest_sup * 1.001, 0) if nearest_sup else current  # 지지선 근처, 없으면 현재가
-    stop_loss = round(entry * 0.93, 0)  # default -7%
-    if atr:
-        atr_stop = round(entry - atr * 2, 0)
-        stop_loss = max(stop_loss, atr_stop)  # less aggressive of the two
-    target1 = round(nearest_res, 0) if nearest_res and nearest_res > entry else round(entry * 1.10, 0)
-    target2 = round(entry * 1.15, 0)
-    risk = entry - stop_loss
-    reward = target1 - entry
+    # --- Scenario: 분할 매수 플랜 ---
+    # 가까운 지지선들을 1·2·3차 진입가로, 균등 매수 가정 평단가 기준으로 손절·목표·손익비 산출
+    supports = ind["sr"].get("supports") or []
+    if supports:
+        entries = supports[:3]  # nearest 3 (이미 가까운 순 정렬)
+    else:
+        entries = [round(current * 0.99, 0)]
+    avg_entry = round(sum(entries) / len(entries), 0)  # 균등 분할 평단가
+
+    # 추세이탈선(손절): 진입 구간 아래 다음 지지선, 없으면 마지막 진입가 ATR×2 아래
+    if len(supports) > len(entries):
+        stop_loss = round(supports[len(entries)] * 0.995, 0)
+    elif atr:
+        stop_loss = round(entries[-1] - atr * 2, 0)
+    else:
+        stop_loss = round(entries[-1] * 0.95, 0)
+
+    target1 = round(nearest_res, 0) if nearest_res and nearest_res > avg_entry else round(avg_entry * 1.10, 0)
+    target2 = round(avg_entry * 1.15, 0)
+    risk = avg_entry - stop_loss
+    reward = target1 - avg_entry
     rr = round(reward / risk, 2) if risk > 0 else None
 
     scenario = {
-        "entry": entry,
+        "entries": entries,
+        "avg_entry": avg_entry,
+        "entry": avg_entry,  # 하위호환 (리스크 계산기 프리필 등)
         "stop_loss": stop_loss,
         "target": target1,
         "target2": target2,
         "risk_reward": rr,
-        "note": "지지선 근처 분할 매수, 저항선 근처 분할 익절" if verdict == "매수 검토" else "추세 확인 후 진입",
+        "strongest_support": ind["sr"].get("strongest_support"),
+        "note": "지지선 분할 매수, 저항선 근처 분할 익절" if verdict == "매수 검토" else "추세 확인 후 분할 진입",
     }
 
     # --- Insight text ---
@@ -134,7 +147,7 @@ def evaluate(ind):
         res_str = f", 저항선은 {nearest_res:,.0f}원 (+{dist_res:.1f}%)" if nearest_res else ""
         insight_lines.append(f"가장 가까운 지지선은 {nearest_sup:,.0f}원 (현재가 대비 -{dist_sup:.1f}%){res_str}입니다.")
     if rr and rr > 0:
-        insight_lines.append(f"진입 후보가 {entry:,.0f}원 기준 예상 손익비는 {rr:.2f}:1입니다. 손절선 {stop_loss:,.0f}원, 1차 목표 {target1:,.0f}원.")
+        insight_lines.append(f"지지선 균등 분할 매수 시 평단 {avg_entry:,.0f}원 기준 예상 손익비는 {rr:.2f}:1입니다. 손절선 {stop_loss:,.0f}원, 1차 목표 {target1:,.0f}원.")
     insight_lines.append("※ 분석 결과이며 투자 권유가 아닙니다. 매매 시 손절선 준수와 분할 진입을 권장합니다.")
 
     return {

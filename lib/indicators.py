@@ -140,9 +140,31 @@ def support_resistance(candles, lookback=60):
     nearest_support = supports[0] if supports else None
     nearest_resistance = resistances[0] if resistances else None
 
+    # 지지선 강도: 과거 테스트 횟수(저가가 그 가격대에 닿은 캔들 수) + 주요 이평선(60·120일) 겹침
+    ma_levels = [m for m in (sma_current(candles, 60), sma_current(candles, 120)) if m]
+    test_window = candles[-120:] if len(candles) >= 120 else candles
+
+    def _strength(level):
+        band = level * 0.007  # ±0.7%
+        touches = sum(1 for c in test_window if abs(c["low"] - level) <= band)
+        confluence = sum(1 for m in ma_levels if abs(m - level) / level <= 0.012)
+        return touches, confluence, touches + confluence * 3
+
+    support_meta = []
+    strongest_support = None
+    best_score = -1
+    for s in supports:
+        t, conf, score = _strength(s)
+        support_meta.append({"level": s, "touches": t, "confluence": conf, "score": score})
+        if score > best_score:
+            best_score = score
+            strongest_support = s
+
     return {
         "supports": supports,
         "resistances": resistances,
+        "support_meta": support_meta,
+        "strongest_support": strongest_support,
         "nearest_support": nearest_support,
         "nearest_resistance": nearest_resistance,
         "dist_to_support_pct": round((current - nearest_support) / current * 100, 2) if nearest_support else None,
