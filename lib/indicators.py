@@ -140,43 +140,49 @@ def support_resistance(candles, lookback=60, res_lookback=250):
                 clusters.append([p])
         return [round(sum(c) / len(c), 0) for c in clusters]
 
-    support_cands = sorted([p for p in cluster(swing_lows) if p < current], reverse=True)
-    resistance_cands = sorted([p for p in cluster(swing_highs) if p > current])
+    supports = sorted([p for p in cluster(swing_lows) if p < current], reverse=True)[:4]
+    resistances = sorted([p for p in cluster(swing_highs) if p > current])[:5]
 
-    # 강도 계산: 과거 그 가격대에 닿아 멈춘(테스트) 횟수 + 주요 이평선(60·120일) 겹침
+    nearest_support = supports[0] if supports else None
+    nearest_resistance = resistances[0] if resistances else None
+
+    # 지지선 강도: 과거 테스트 횟수(저가가 그 가격대에 닿은 캔들 수) + 주요 이평선(60·120일) 겹침
     ma_levels = [m for m in (sma_current(candles, 60), sma_current(candles, 120)) if m]
     test_window = candles[-120:] if len(candles) >= 120 else candles
 
-    def _strength(level, use_high):
+    def _strength(level):
         band = level * 0.007  # ±0.7%
-        win = res_recent if use_high else test_window
-        key = "high" if use_high else "low"
-        touches = sum(1 for c in win if abs(c[key] - level) <= band)
+        touches = sum(1 for c in test_window if abs(c["low"] - level) <= band)
         confluence = sum(1 for m in ma_levels if abs(m - level) / level <= 0.012)
         return touches, confluence, touches + confluence * 3
 
-    # 지지선: 강한 2~3개만 (촘촘함보다 '확실한 자리' 우선). 진입가는 가까운 순으로 정렬.
-    s_scored = [dict({"level": s}, **dict(zip(("touches", "confluence", "score"), _strength(s, False))))
-                for s in support_cands]
-    s_top = sorted(s_scored, key=lambda m: m["score"], reverse=True)[:3]
-    s_top.sort(key=lambda m: m["level"], reverse=True)  # 가까운(가격 높은) 순
-    supports = [m["level"] for m in s_top]
-    support_meta = s_top
-    strongest_support = max(s_top, key=lambda m: m["score"])["level"] if s_top else None
-    nearest_support = supports[0] if supports else None
+    support_meta = []
+    strongest_support = None
+    best_score = -1
+    for s in supports:
+        t, conf, score = _strength(s)
+        support_meta.append({"level": s, "touches": t, "confluence": conf, "score": score})
+        if score > best_score:
+            best_score = score
+            strongest_support = s
 
-    # 저항선: 실제 쓰는 2개만 — 1차 목표(가장 가까운) + 2차 목표(가장 강한)
-    r_scored = [dict({"level": r}, **dict(zip(("touches", "confluence", "score"), _strength(r, True))))
-                for r in resistance_cands]
-    nearest_resistance = resistance_cands[0] if resistance_cands else None
-    strongest_resistance = max(r_scored, key=lambda m: m["score"])["level"] if r_scored else None
-    keep = []
-    for lv in (nearest_resistance, strongest_resistance):
-        if lv is not None and lv not in keep:
-            keep.append(lv)
-    keep.sort()  # 가까운 순
-    resistances = keep
-    resistance_meta = [m for m in r_scored if m["level"] in keep]
+    # 저항선 강도: 고가가 그 가격대에 닿아 막힌 횟수(테스트) + 이평선 겹침.
+    # 2차 목표로 쓸 '가장 확률 높은(가장 많이 막힌) 저항선'을 고른다.
+    def _res_strength(level):
+        band = level * 0.007  # ±0.7%
+        touches = sum(1 for c in res_recent if abs(c["high"] - level) <= band)
+        confluence = sum(1 for m in ma_levels if abs(m - level) / level <= 0.012)
+        return touches, confluence, touches + confluence * 3
+
+    resistance_meta = []
+    strongest_resistance = None
+    best_res_score = -1
+    for r in resistances:
+        t, conf, score = _res_strength(r)
+        resistance_meta.append({"level": r, "touches": t, "confluence": conf, "score": score})
+        if score > best_res_score:
+            best_res_score = score
+            strongest_resistance = r
 
     return {
         "supports": supports,
