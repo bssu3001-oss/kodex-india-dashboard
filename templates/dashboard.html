@@ -453,7 +453,8 @@ function toggleOverlay(key) {
 }
 
 function _addSRLines(candle, arr) {
-  // 차트엔 핵심 선만 그림: 가장 강한 지지 + 1차 목표(가까운 저항) + 2차 목표(가장 강한 저항).
+  // 차트엔 핵심 선만 그림: 가장 강한 지지 + 1차 목표(가까운 저항) + 2차 목표.
+  // 2차 목표는 리스크 계산기·시나리오와 동일한 기준(1차 목표 위 저항 중 가장 강한 것)으로 통일.
   // 전체 지지·저항 목록은 아래 '지지선·저항선' 패널에 그대로 있음.
   var sr = D.indicators.sr || {};
   var GOLD = 'rgba(247,201,72,0.95)', RED = 'rgba(239,83,80,0.9)';
@@ -465,7 +466,8 @@ function _addSRLines(candle, arr) {
     }));
   }
   add(sr.strongest_support, GOLD, '핵심지지');
-  var t1 = sr.nearest_resistance, t2 = sr.strongest_resistance;
+  var t1 = sr.nearest_resistance;
+  var t2 = (D.signal && D.signal.scenario && D.signal.scenario.target2) || null;
   add(t1, RED, '1차목표');
   if (t2 != null && (t1 == null || Math.round(t2) !== Math.round(t1))) add(t2, GOLD, '2차목표');
 }
