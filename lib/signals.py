@@ -148,9 +148,9 @@ def evaluate(ind):
         f"RSI {rsi:.0f}은(는) {'과열 구간으로 단기 조정에 주의해야 합니다' if rsi >= 70 else ('과매도 구간으로 반등 가능성이 있습니다' if rsi <= 30 else '정상 범위입니다')}.",
         f"거래량은 20일 평균 대비 {vol_vs_ma20:+.0f}%로 {'힘이 실리고 있습니다' if vol_vs_ma20 > 0 else '약해지고 있습니다'}.",
     ]
-    if nearest_sup:
+    if strongest_sup:
         res_str = f", 저항선은 {nearest_res:,.0f}원 (+{dist_res:.1f}%)" if nearest_res else ""
-        insight_lines.append(f"가장 가까운 지지선은 {nearest_sup:,.0f}원 (현재가 대비 -{dist_sup:.1f}%){res_str}입니다.")
+        insight_lines.append(f"핵심 지지선은 {strongest_sup:,.0f}원 (현재가 대비 -{dist_sup:.1f}%){res_str}입니다.")
     if rr and rr > 0:
         insight_lines.append(f"지지선 균등 분할 매수 시 평단 {avg_entry:,.0f}원 기준 예상 손익비는 {rr:.2f}:1입니다. 손절선 {stop_loss:,.0f}원, 1차 목표 {target1:,.0f}원.")
     insight_lines.append("※ 분석 결과이며 투자 권유가 아닙니다. 매매 시 손절선 준수와 분할 진입을 권장합니다.")
