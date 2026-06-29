@@ -55,10 +55,11 @@ def generate(points, quote, indicators, market_status):
         return {"mode": "waiting", "title": "오늘의 흐름",
                 "body": "장 시작 대기 중입니다.", "timeline": []}
 
+    # 시가·고가·저가는 네이버 공식값 우선(기록이 드물어도 정확). 기록은 타임라인용.
     prices = [p["price"] for p in points if p.get("price") is not None]
-    day_high = max(prices) if prices else q.get("high")
-    day_low = min(prices) if prices else q.get("low")
-    start = points[0].get("price") or open_
+    day_high = q.get("high") or (max(prices) if prices else None)
+    day_low = q.get("low") or (min(prices) if prices else None)
+    start = open_ or (points[0].get("price") if points else None)
 
     vs_open = round((price - start) / start * 100, 1) if start else None
     strong = (vs_open is not None and vs_open > 0) and (change_pct is not None and change_pct > 0)
