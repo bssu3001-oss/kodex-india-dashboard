@@ -3,8 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="refresh" content="0; url=./dashboard.html">
 <title>KODEX 인도Nifty50 대시보드</title>
+<script>
+  // 캐시 무시하고 항상 최신 대시보드를 받아온다 (열 때마다 최신 데이터)
+  location.replace('./dashboard.html?t=' + Date.now());
+</script>
+<noscript><meta http-equiv="refresh" content="0; url=./dashboard.html"></noscript>
 </head>
 <body style="background:#0d1117;color:#e6edf3;font-family:-apple-system,sans-serif;text-align:center;padding:40px">
 대시보드로 이동 중… <a href="./dashboard.html" style="color:#58a6ff">바로 가기</a>
