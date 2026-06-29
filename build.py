@@ -79,7 +79,7 @@ def build(open_browser=True):
         "indicators": indicators,
         "signal": signal,
         "backtest": backtest,
-        "generated_at": datetime.datetime.now().isoformat(),
+        "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     }
 
     # Cache successful fetch
