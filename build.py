@@ -12,9 +12,12 @@ from lib.indicators import compute_all, aggregate_weekly
 from lib.signals import evaluate
 from lib.backtest import run_backtest
 from lib.render import render_dashboard
+from lib.intraday import load as load_intraday, append as append_intraday, save as save_intraday
+from lib.commentary import generate as generate_commentary
 
 OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "dashboard.html")
 CACHE_PATH = os.path.join(os.path.dirname(__file__), "data", "last_good.json")
+INTRADAY_PATH = os.path.join(os.path.dirname(__file__), "data", "intraday.json")
 
 
 def _load_cache():
@@ -41,6 +44,7 @@ def build(open_browser=True):
     candles = fetch_candles(days=1300)
     if not candles or len(candles) < 30:
         print("⚠️  실시간 데이터 수신 실패 — 캐시 사용")
+        fresh = False
         cached = _load_cache()
         if cached:
             candles = cached.get("candles", [])
@@ -52,6 +56,7 @@ def build(open_browser=True):
         news = cached.get("news", [])
         macro = cached.get("macro", {})
     else:
+        fresh = True
         quote = fetch_quote()
         nav = fetch_nav()
         news = fetch_news()
@@ -68,6 +73,15 @@ def build(open_browser=True):
     print(f"  시그널: {signal['verdict']} (신뢰도 {signal['confidence']})")
     print(f"  백테스트: {backtest['total_trades']}회 매매, 승률 {backtest['win_rate']}%")
 
+    # 장중 흐름 기록 (신선한 수신일 때만 누적) + 중계 문장
+    intraday_state = load_intraday(INTRADAY_PATH)
+    if fresh and quote and quote.get("price") is not None:
+        intraday_state = append_intraday(intraday_state, quote)
+        save_intraday(intraday_state, INTRADAY_PATH)
+    commentary = generate_commentary(
+        intraday_state.get("points", []), quote, indicators,
+        (quote or {}).get("market_status"))
+
     # Assemble payload
     data = {
         "candles": candles,
@@ -80,6 +94,7 @@ def build(open_browser=True):
         "signal": signal,
         "backtest": backtest,
         "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "commentary": commentary,
     }
 
     # Cache successful fetch

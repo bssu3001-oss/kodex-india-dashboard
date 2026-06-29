@@ -22,11 +22,14 @@ class TestBuildIntegration(unittest.TestCase):
             self.candles = json.load(f)
 
     def _patch_and_build(self, out_path):
-        """Monkey-patch all fetch functions, point OUTPUT_PATH to temp file."""
+        """Monkey-patch all fetch functions, point OUTPUT_PATH / INTRADAY_PATH to temp files."""
         import lib.fetch as fetch_mod
         import build as build_mod
+        intraday_path = out_path + ".intraday.json"
+        orig_intraday = build_mod.INTRADAY_PATH
         # Patch
         build_mod.OUTPUT_PATH = out_path
+        build_mod.INTRADAY_PATH = intraday_path
         build_mod.fetch_candles = lambda days=200: self.candles
         build_mod.fetch_quote = lambda: make_quote()
         build_mod.fetch_nav = lambda: {"nav": 13100, "gap_pct": 0.19}
@@ -35,11 +38,14 @@ class TestBuildIntegration(unittest.TestCase):
         result = build_mod.build(open_browser=False)
         # Restore
         build_mod.OUTPUT_PATH = os.path.join(os.path.dirname(build_mod.__file__), "dashboard.html")
+        build_mod.INTRADAY_PATH = orig_intraday
         build_mod.fetch_candles = fetch_mod.fetch_candles
         build_mod.fetch_quote = fetch_mod.fetch_quote
         build_mod.fetch_nav = fetch_mod.fetch_nav
         build_mod.fetch_news = fetch_mod.fetch_news
         build_mod.fetch_macro = fetch_mod.fetch_macro
+        if os.path.exists(intraday_path):
+            os.unlink(intraday_path)
         return result
 
     def test_build_produces_html(self):
@@ -72,6 +78,18 @@ class TestBuildIntegration(unittest.TestCase):
         try:
             result = self._patch_and_build(out_path)
             self.assertEqual(result, out_path)
+        finally:
+            os.unlink(out_path)
+
+    def test_commentary_present_in_output(self):
+        with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as f:
+            out_path = f.name
+        try:
+            self._patch_and_build(out_path)
+            with open(out_path, encoding="utf-8") as f:
+                content = f.read()
+            self.assertIn('"commentary"', content)
+            self.assertIn("오늘 마감 요약", content)  # make_quote는 CLOSE 상태
         finally:
             os.unlink(out_path)
 
