@@ -37,6 +37,18 @@ class TestGenerate(unittest.TestCase):
         self.assertIn("마감", r["title"])
         self.assertIn("강세 마감", r["body"])
 
+    def test_live_uses_prev_close_pct_not_open_basis(self):
+        # 갭하락: 시가(13180) < 전일종가, 현재가=전일종가 → 전일 대비 0.00%여야 함(헤더와 일치)
+        p = pts(("09:00", 13230, 0.0))
+        r = commentary.generate(p, quote(13230, 13180, 13235, 13180, 0.0, "OPEN"), ind(0), "OPEN")
+        self.assertIn("전일 대비 +0.00%", r["body"])   # 헤더와 동일 기준·자릿수
+        self.assertNotIn("시가 대비", r["body"])         # 시가 대비 % 제거됨
+
+    def test_close_pct_two_decimals(self):
+        p = pts(("09:00", 13180, -0.38), ("15:30", 13280, 0.38))
+        r = commentary.generate(p, quote(13280, 13180, 13280, 13135, 0.38, "CLOSE"), ind(0), "CLOSE")
+        self.assertIn("+0.38%", r["body"])  # 헤더와 동일하게 2자리
+
     def test_timeline_capped_at_6(self):
         p = pts(*[(f"{9+i//4:02d}:{(i%4)*15:02d}", 13000 + i * 5, 0.1 * i) for i in range(24)])
         r = commentary.generate(p, quote(13115, 13000, 13115, 13000, 0.9, "OPEN"), ind(0), "OPEN")

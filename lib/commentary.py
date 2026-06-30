@@ -9,7 +9,7 @@ def _fmt(n):
 
 
 def _signed(n):
-    return f"{'+' if n >= 0 else ''}{n:.1f}%"
+    return f"{'+' if n >= 0 else ''}{n:.2f}%"
 
 
 def _build_timeline(points):
@@ -61,10 +61,9 @@ def generate(points, quote, indicators, market_status):
     day_low = q.get("low") or (min(prices) if prices else None)
     start = open_ or (points[0].get("price") if points else None)
 
-    vs_open = round((price - start) / start * 100, 1) if start else None
-    strong = (vs_open is not None and vs_open > 0) and (change_pct is not None and change_pct > 0)
-    weak = (vs_open is not None and vs_open < 0) and (change_pct is not None and change_pct < 0)
-    mood = "강세 우위" if strong else ("약세 우위" if weak else "보합권")
+    # 등락률은 헤더·증권사와 동일하게 "전일 대비"(change_pct) 하나로 통일한다.
+    mood = "강세 우위" if (change_pct is not None and change_pct > 0) else (
+        "약세 우위" if (change_pct is not None and change_pct < 0) else "보합권")
     vol = _vol_phrase(indicators)
 
     if market_status == "CLOSE":
@@ -88,11 +87,12 @@ def generate(points, quote, indicators, market_status):
     body = f"{_fmt(start)}로 출발해 "
     if day_high and price and day_high > price:
         body += f"장중 {_fmt(day_high)}까지 올랐다가 현재 {_fmt(price)}"
+    elif day_low and price and day_low < price:
+        body += f"장중 {_fmt(day_low)}까지 밀렸다가 현재 {_fmt(price)}"
     else:
         body += f"현재 {_fmt(price)}"
-    body += f", 시가 대비 {_signed(vs_open)}입니다" if vs_open is not None else "입니다"
-    body += f". 오늘 고점 {_fmt(day_high)} / 저점 {_fmt(day_low)}"
     body += f", 전일 대비 {_signed(change_pct)}로 {mood}입니다" if change_pct is not None else f", {mood}입니다"
+    body += f". 오늘 고점 {_fmt(day_high)} / 저점 {_fmt(day_low)}"
     body += "." + vol
     return {"mode": "live", "title": "📡 오늘의 흐름", "body": body.strip(),
             "timeline": _build_timeline(points)}
