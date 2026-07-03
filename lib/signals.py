@@ -58,13 +58,18 @@ def evaluate(ind):
         score -= 0.5
         reasons.append("거래량 감소 — 추세 신뢰도 낮음")
 
-    # --- Support proximity (buying opportunity) ---
-    if dist_sup is not None and dist_sup < 3:
+    # --- Support/resistance proximity: show only the nearer one to avoid contradictory signals ---
+    if dist_sup is not None and dist_res is not None and dist_sup < 3 and dist_res < 3:
+        if dist_sup <= dist_res:
+            score += 0.5
+            reasons.append(f"지지선 근접 ({dist_sup:.1f}% 위) — 분할 매수 후보")
+        else:
+            score -= 0.5
+            reasons.append(f"저항선 근접 ({dist_res:.1f}% 아래) — 익절/관망 구간")
+    elif dist_sup is not None and dist_sup < 3:
         score += 0.5
         reasons.append(f"지지선 근접 ({dist_sup:.1f}% 위) — 분할 매수 후보")
-
-    # --- Resistance proximity (take profit alert) ---
-    if dist_res is not None and dist_res < 3:
+    elif dist_res is not None and dist_res < 3:
         score -= 0.5
         reasons.append(f"저항선 근접 ({dist_res:.1f}% 아래) — 익절/관망 구간")
 
