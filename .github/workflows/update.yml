@@ -24,13 +24,15 @@ jobs:
           python-version: '3.11'
 
       - name: 대시보드 빌드 (의존성 없음, 표준 라이브러리만)
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: python -c "from build import build; build(open_browser=False)"
 
       - name: 변경 있으면 커밋 & 푸시
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add dashboard.html data/last_good.json data/intraday.json
+          git add dashboard.html data/last_good.json data/intraday.json data/alert_state.json
           if git diff --staged --quiet; then
             echo "변경 없음 — 커밋 안 함"
           else

@@ -12,12 +12,30 @@ from lib.indicators import compute_all, aggregate_weekly
 from lib.signals import evaluate
 from lib.backtest import run_backtest
 from lib.render import render_dashboard
-from lib.intraday import load as load_intraday, append as append_intraday, save as save_intraday
+from lib.intraday import load as load_intraday, append as append_intraday, save as save_intraday, _kst_dt
 from lib.commentary import generate as generate_commentary
+from lib.alerts import check_alerts
+from lib.ntfy import send_ntfy
 
 OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "dashboard.html")
 CACHE_PATH = os.path.join(os.path.dirname(__file__), "data", "last_good.json")
 INTRADAY_PATH = os.path.join(os.path.dirname(__file__), "data", "intraday.json")
+ALERT_STATE_PATH = os.path.join(os.path.dirname(__file__), "data", "alert_state.json")
+DASHBOARD_URL = "https://bssu3001-oss.github.io/kodex-india-dashboard/"
+
+
+def _load_alert_state():
+    try:
+        with open(ALERT_STATE_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _save_alert_state(state):
+    os.makedirs(os.path.dirname(ALERT_STATE_PATH), exist_ok=True)
+    with open(ALERT_STATE_PATH, "w", encoding="utf-8") as f:
+        json.dump(state, f, ensure_ascii=False)
 
 
 def _load_cache():
@@ -72,6 +90,16 @@ def build(open_browser=True):
 
     print(f"  시그널: {signal['verdict']} (신뢰도 {signal['confidence']})")
     print(f"  백테스트: {backtest['total_trades']}회 매매, 승률 {backtest['win_rate']}%")
+
+    # 지지선/저항선 터치 알림 (ntfy) — 실제 최신 시세를 받은 경우만
+    ntfy_topic = os.environ.get("NTFY_TOPIC")
+    if fresh and ntfy_topic and quote:
+        today = _kst_dt(quote).date().isoformat()
+        alert_state = _load_alert_state()
+        triggered, alert_state = check_alerts(quote, signal["scenario"], alert_state, today)
+        for key, level, msg in triggered:
+            send_ntfy(ntfy_topic, msg, click_url=DASHBOARD_URL)
+        _save_alert_state(alert_state)
 
     # 장중 흐름 기록 (신선한 수신일 때만 누적) + 중계 문장
     intraday_state = load_intraday(INTRADAY_PATH)
